@@ -4,9 +4,14 @@ on:
   pull_request:
     types: [opened, synchronize, labeled, unlabeled]
 
+permissions: {}
+
 jobs:
   test-action:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
 
