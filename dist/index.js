@@ -30396,9 +30396,13 @@ function buildPRText({ owner, repo, baseBranch, currentTag, nextTag, notes, }) {
     const known = !!nextTag;
     const title = known ? `Release for ${nextTag}` : "Release for new version";
     const parts = [];
-    parts.push("Release prepared by create-release-pr");
+    parts.push("## 🚀 Release PR");
+    parts.push("");
+    parts.push("_Prepared by create-release-pr_");
     parts.push("");
     // Build the release info table
+    parts.push("### Release Information");
+    parts.push("");
     parts.push("| | |");
     parts.push("|---|---|");
     // Current tag with link to release page
@@ -30409,16 +30413,25 @@ function buildPRText({ owner, repo, baseBranch, currentTag, nextTag, notes, }) {
         parts.push("| **Current Release** | (none) |");
     }
     // Next tag
-    parts.push(`| **Next Release** | ${nextTag || "(TBD: set bump:major/minor/patch)"} |`);
+    parts.push(`| **Next Release** | ${nextTag || "⚠️ TBD - Add label: `bump:major`, `bump:minor`, or `bump:patch`"} |`);
     // Full changelog link
     if (currentTag) {
-        parts.push(`| **Changes** | [Full Changelog](https://github.com/${owner}/${repo}/compare/${currentTag}...${baseBranch}) |`);
+        parts.push(`| **Changes** | [View Diff](https://github.com/${owner}/${repo}/compare/${currentTag}...${baseBranch}) |`);
     }
     parts.push("");
     parts.push("---");
     parts.push("");
-    if (notes)
+    parts.push("### 📝 Release Notes Preview");
+    parts.push("");
+    parts.push("> **Note:** This is a preview of the release notes that will be published when this PR is merged.");
+    parts.push("> Links in the changelog may not work until the release is created.");
+    parts.push("");
+    if (notes) {
         parts.push(notes);
+    }
+    else {
+        parts.push("_Release notes will be generated here_");
+    }
     return { title, body: parts.join("\n") };
 }
 void run();
