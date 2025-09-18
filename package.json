@@ -4,13 +4,16 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "build": "tsc && ncc build dist/index.js -o dist"
+    "build": "tsc && ncc build dist/index.js -o dist",
+    "lint": "tsgolint",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@actions/core": "^1.10.1",
     "@actions/github": "^6.0.0"
   },
   "devDependencies": {
+    "oxlint-tsgolint": "^0.2.0",
     "@types/node": "^22.0.0",
     "@tsconfig/recommended": "^1.0.0",
     "typescript": "^5.5.0",
