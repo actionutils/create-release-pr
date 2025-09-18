@@ -1,7 +1,8 @@
 // TypeScript source of the action. The compiled output is committed in dist/index.js.
 // This action creates/updates a release PR and exposes outputs as per docs/design.md.
 
-import { readFileSync, existsSync, appendFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
+import * as core from '@actions/core';
 
 type BumpLevel = 'major' | 'minor' | 'patch' | 'unknown';
 
@@ -15,20 +16,20 @@ type GhClient = {
 
 async function run(): Promise<void> {
   try {
-    const token = input('github-token') || process.env.GITHUB_TOKEN;
+    const token = (core.getInput('github-token') || process.env.GITHUB_TOKEN) as string | undefined;
     if (!token) throw new Error('Missing github-token');
 
     const repoFull = process.env.GITHUB_REPOSITORY || '';
     const [owner, repo] = repoFull.split('/');
     if (!owner || !repo) throw new Error(`Invalid GITHUB_REPOSITORY: ${repoFull}`);
 
-    const baseBranch = input('base-branch') || 'main';
-    const releaseBranch = input('release-branch') || 'release/pr';
-    const labelMajor = input('label-major') || 'bump:major';
-    const labelMinor = input('label-minor') || 'bump:minor';
-    const labelPatch = input('label-patch') || 'bump:patch';
-    const tagPrefix = input('tag-prefix') || 'v';
-    const releaseCfgPath = input('configuration_file_path') || undefined;
+    const baseBranch = core.getInput('base-branch') || 'main';
+    const releaseBranch = core.getInput('release-branch') || 'release/pr';
+    const labelMajor = core.getInput('label-major') || 'bump:major';
+    const labelMinor = core.getInput('label-minor') || 'bump:minor';
+    const labelPatch = core.getInput('label-patch') || 'bump:patch';
+    const tagPrefix = core.getInput('tag-prefix') || 'v';
+    const releaseCfgPath = core.getInput('configuration_file_path') || undefined;
 
     const eventName = process.env.GITHUB_EVENT_NAME;
     const eventPath = process.env.GITHUB_EVENT_PATH;
@@ -38,10 +39,10 @@ async function run(): Promise<void> {
 
     if (eventName === 'pull_request') {
       const action = (event as any).action;
-      if (action !== 'labeled' && action !== 'unlabeled') return setOutputs({ state: 'noop' });
+      if (action !== 'labeled' && action !== 'unlabeled') return writeOutputs({ state: 'noop' });
       const pr = (event as any).pull_request;
-      if (!pr) return setOutputs({ state: 'noop' });
-      if (pr.head && pr.head.ref !== releaseBranch) return setOutputs({ state: 'noop' });
+      if (!pr) return writeOutputs({ state: 'noop' });
+      if (pr.head && pr.head.ref !== releaseBranch) return writeOutputs({ state: 'noop' });
       const currentTag = await latestTag(gh, owner, repo, tagPrefix).catch(() => null);
       const bumpLevel = detectBump(pr.labels || [], { labelMajor, labelMinor, labelPatch });
       const nextTag = bumpLevel === 'unknown' ? '' : calcNext(tagPrefix, currentTag, bumpLevel);
@@ -52,7 +53,7 @@ async function run(): Promise<void> {
       }).catch(() => '');
       const { title, body } = buildPRText({ owner, repo, baseBranch, currentTag, nextTag, notes });
       await gh.patch(`/repos/${owner}/${repo}/pulls/${pr.number}`, { title, body });
-      return setOutputs({
+      return writeOutputs({
         state: 'pr_changed',
         pr_number: String(pr.number),
         pr_url: pr.html_url,
@@ -77,7 +78,7 @@ async function run(): Promise<void> {
         const currentTag = await latestTag(gh, owner, repo, tagPrefix).catch(() => null);
         const bumpLevel = detectBump(relPR.labels || [], { labelMajor, labelMinor, labelPatch });
         const nextTag = bumpLevel === 'unknown' ? '' : calcNext(tagPrefix, currentTag, bumpLevel);
-        return setOutputs({
+        return writeOutputs({
           state: 'release_required',
           pr_number: '',
           pr_url: '',
@@ -102,7 +103,7 @@ async function run(): Promise<void> {
         }).catch(() => '');
         const { title, body } = buildPRText({ owner, repo, baseBranch, currentTag, nextTag, notes });
         const updated = await gh.patch(`/repos/${owner}/${repo}/pulls/${existing.number}`, { title, body });
-        return setOutputs({
+        return writeOutputs({
           state: 'pr_changed',
           pr_number: String(updated.number),
           pr_url: updated.html_url,
@@ -130,7 +131,7 @@ async function run(): Promise<void> {
         body,
         draft: false,
       });
-      return setOutputs({
+      return writeOutputs({
         state: 'pr_changed',
         pr_number: String(created.number),
         pr_url: created.html_url,
@@ -142,38 +143,18 @@ async function run(): Promise<void> {
       });
     }
 
-    return setOutputs({ state: 'noop' });
+    return writeOutputs({ state: 'noop' });
   } catch (err: any) {
-    coreError(String(err?.stack || err));
+    core.setFailed(String(err?.stack || err));
     process.exit(1);
   }
 }
 
-function input(name: string): string | undefined {
-  const k = `INPUT_${name.replace(/ /g, '_').toUpperCase()}`;
-  return process.env[k];
-}
-
-function setOutputs(map: Record<string, string>): void {
-  const outPath = process.env.GITHUB_OUTPUT;
-  if (!outPath) return;
-  let buf = '';
-  for (const [name, value] of Object.entries(map)) {
-    if (value === undefined || value === null) continue;
-    const v = String(value);
-    if (v.includes('\n')) {
-      const delim = `EOF_${Math.random().toString(36).slice(2, 8)}`;
-      buf += `${name}<<${delim}\n${v}\n${delim}\n`;
-    } else {
-      buf += `${name}=${v}\n`;
-    }
+function writeOutputs(map: Record<string, string>): void {
+  for (const [k, v] of Object.entries(map)) {
+    if (v === undefined) continue;
+    core.setOutput(k, v);
   }
-  if (buf) appendFileSync(outPath, buf);
-  console.log('Outputs written: ' + Object.keys(map).join(', '));
-}
-
-function coreError(msg: string): void {
-  console.error(`::error::${msg}`);
 }
 
 function makeClient(token: string): GhClient {
