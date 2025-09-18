@@ -34,8 +34,8 @@ inputs:
     required: true
     default: ${{ github.token }}
 runs:
-  using: node20
-  main: index.js
+  using: node24
+  main: dist/index.js
 outputs:
   state:
     description: release_required | pr_changed | noop
