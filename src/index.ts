@@ -253,6 +253,8 @@ async function run(): Promise<void> {
 				draft: false,
 			});
 			core.info(`Created release PR #${created.number}`);
+			// Add release-pr label to the created PR
+			await ensureAndAddLabel(octokit, owner, repo, created.number, "release-pr");
 			setOutputWithLog("state", "pr_changed");
 			setOutputWithLog("pr_number", String(created.number));
 			setOutputWithLog("pr_url", created.html_url);
@@ -440,6 +442,50 @@ async function ensureReleaseBranch(
 		sha: newSha,
 	});
 	core.info(`Created release branch ${releaseBranch} at SHA: ${newSha}`);
+}
+
+async function ensureAndAddLabel(
+	octokit: ReturnType<typeof getOctokit>,
+	owner: string,
+	repo: string,
+	prNumber: number,
+	labelName: string,
+): Promise<void> {
+	try {
+		// First, try to create the label if it doesn't exist
+		try {
+			await octokit.rest.issues.getLabel({
+				owner,
+				repo,
+				name: labelName,
+			});
+			core.debug(`Label "${labelName}" already exists`);
+		} catch (error) {
+			// Label doesn't exist, create it
+			core.info(`Creating "${labelName}" label`);
+			await octokit.rest.issues.createLabel({
+				owner,
+				repo,
+				name: labelName,
+				color: "0E8A16", // Green color
+				description: "Pull request for release",
+			});
+			core.info(`Created "${labelName}" label`);
+		}
+
+		// Now add the label to the PR
+		await octokit.rest.issues.addLabels({
+			owner,
+			repo,
+			issue_number: prNumber,
+			labels: [labelName],
+		});
+		core.info(`Added "${labelName}" label to PR #${prNumber}`);
+	} catch (labelErr) {
+		core.warning(
+			`Failed to add "${labelName}" label: ${labelErr instanceof Error ? labelErr.message : String(labelErr)}`,
+		);
+	}
 }
 
 function buildPRText({
