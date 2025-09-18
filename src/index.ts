@@ -1,9 +1,9 @@
 // TypeScript source of the action. The compiled output is committed in dist/index.js.
 // This action creates/updates a release PR and exposes outputs as per docs/design.md.
 
-import { readFileSync, existsSync } from 'fs';
 import * as core from '@actions/core';
 import { getOctokit, context as ghContext } from '@actions/github';
+import { PullRequestEvent as WebhookPullRequestEvent, PushEvent } from '@octokit/webhooks-definitions/schema';
 
 type BumpLevel = 'major' | 'minor' | 'patch' | 'unknown';
 
@@ -18,7 +18,7 @@ function setOutputWithLog(name: string, value: string): void {
 async function run(): Promise<void> {
   try {
     core.info('Starting create-release-pr action');
-    const token = (core.getInput('github-token') || process.env.GITHUB_TOKEN) as string | undefined;
+    const token = core.getInput('github-token') || process.env.GITHUB_TOKEN;
     if (!token) throw new Error('Missing github-token');
 
     const repoFull = process.env.GITHUB_REPOSITORY || '';
@@ -33,9 +33,7 @@ async function run(): Promise<void> {
     const tagPrefix = core.getInput('tag-prefix') || 'v';
     const releaseCfgPath = core.getInput('configuration_file_path') || undefined;
 
-    const eventName = process.env.GITHUB_EVENT_NAME;
-    const eventPath = process.env.GITHUB_EVENT_PATH;
-    const event = eventPath && existsSync(eventPath) ? JSON.parse(readFileSync(eventPath, 'utf8')) : {} as any;
+    const eventName = ghContext.eventName;
     core.debug(`Event name: ${eventName}`);
     core.debug(`Configuration: baseBranch=${baseBranch}, releaseBranch=${releaseBranch}, tagPrefix=${tagPrefix}`);
 
@@ -43,20 +41,21 @@ async function run(): Promise<void> {
 
     if (eventName === 'pull_request') {
       core.info('Processing pull_request event');
-      const action = (event as any).action;
+      const payload = ghContext.payload as WebhookPullRequestEvent;
+      const action = payload.action;
       core.debug(`PR action: ${action}`);
       if (action !== 'labeled' && action !== 'unlabeled') {
         core.info('Action is not labeled/unlabeled - skipping');
         setOutputWithLog('state', 'noop');
         return;
       }
-      const pr = (event as any).pull_request;
+      const pr = payload.pull_request;
       if (!pr) {
         setOutputWithLog('state', 'noop');
         return;
       }
-      if (pr.head && pr.head.ref !== releaseBranch) {
-        core.info(`PR is not from release branch (${pr.head?.ref} != ${releaseBranch}) - skipping`);
+      if (pr.head.ref !== releaseBranch) {
+        core.info(`PR is not from release branch (${pr.head.ref} != ${releaseBranch}) - skipping`);
         setOutputWithLog('state', 'noop');
         return;
       }
@@ -89,12 +88,13 @@ async function run(): Promise<void> {
 
     if (eventName === 'push') {
       core.info('Processing push event');
-      const headSha: string = (event as any).after;
+      const pushPayload = ghContext.payload as PushEvent;
+      const headSha = pushPayload.after;
       core.debug(`Head SHA: ${headSha}`);
-      let relPR: any | undefined;
+      let relPR: WebhookPullRequestEvent['pull_request'] | undefined;
       try {
         const { data } = await octokit.rest.repos.listPullRequestsAssociatedWithCommit({ owner, repo, commit_sha: headSha });
-        relPR = (data || []).find((p: any) => p.head && p.head.ref === releaseBranch);
+        relPR = (data || []).find(p => p.head?.ref === releaseBranch) as WebhookPullRequestEvent['pull_request'] | undefined;
       } catch {}
       if (relPR) {
         core.info(`Found merged release PR: #${relPR.number}`);
@@ -174,9 +174,9 @@ async function run(): Promise<void> {
     core.info(`Event '${eventName}' does not require action`);
     setOutputWithLog('state', 'noop');
     return;
-  } catch (err: any) {
-    core.error(`Action failed: ${err?.message || err}`);
-    core.setFailed(String(err?.stack || err));
+  } catch (err: unknown) {
+    core.error(`Action failed: ${err instanceof Error ? err.message : String(err)}`);
+    core.setFailed(err instanceof Error ? err.stack || err.message : String(err));
     process.exit(1);
   }
 }
@@ -185,7 +185,7 @@ async function latestTag(octokit: ReturnType<typeof getOctokit>, owner: string, 
   core.debug(`Fetching tags with prefix: ${prefix}`);
   const tags = await octokit.paginate(octokit.rest.repos.listTags, { owner, repo, per_page: 100 });
   const semvers = (tags || [])
-    .map(t => t.name as string)
+    .map(t => t.name)
     .filter(n => n && n.startsWith(prefix))
     .map(n => ({ name: n, v: parseSemVer(n.slice(prefix.length)) }))
     .filter((x): x is { name: string; v: SemVer } => !!x.v)
@@ -208,7 +208,7 @@ function cmpSemVer(a: SemVer, b: SemVer): number {
   return a.patch - b.patch;
 }
 
-function detectBump(labels: any[], cfg: { labelMajor: string; labelMinor: string; labelPatch: string }): BumpLevel {
+function detectBump(labels: Array<string | { name: string }>, cfg: { labelMajor: string; labelMinor: string; labelPatch: string }): BumpLevel {
   const names = new Set((labels || []).map(l => typeof l === 'string' ? l : l.name));
   if (names.has(cfg.labelMajor)) return 'major';
   if (names.has(cfg.labelMinor)) return 'minor';
@@ -261,19 +261,19 @@ async function ensureReleaseBranch(
   core.debug(`Ensuring release branch: ${releaseBranch}`);
   try {
     const { data: ref } = await octokit.rest.git.getRef({ owner, repo, ref: `heads/${releaseBranch}` });
-    if (ref && (ref as any).object?.sha) {
-      core.debug(`Release branch exists at SHA: ${(ref as any).object?.sha}`);
+    if (ref && ref.object?.sha) {
+      core.debug(`Release branch exists at SHA: ${ref.object.sha}`);
       return; // exists
     }
   } catch {
     core.debug('Release branch does not exist, creating...');
   }
   const { data: baseRef } = await octokit.rest.git.getRef({ owner, repo, ref: `heads/${baseBranch}` });
-  const baseSha = (baseRef as any).object.sha as string;
+  const baseSha = baseRef.object.sha;
   const { data: baseCommit } = await octokit.rest.git.getCommit({ owner, repo, commit_sha: baseSha });
-  const treeSha = (baseCommit as any).tree.sha as string;
+  const treeSha = baseCommit.tree.sha;
   const { data: newCommit } = await octokit.rest.git.createCommit({ owner, repo, message: 'chore(release): prepare release PR (empty commit)', tree: treeSha, parents: [baseSha] });
-  const newSha = (newCommit as any).sha as string;
+  const newSha = newCommit.sha;
   await octokit.rest.git.createRef({ owner, repo, ref: `refs/heads/${releaseBranch}`, sha: newSha });
   core.info(`Created release branch ${releaseBranch} at SHA: ${newSha}`);
 }
@@ -295,4 +295,4 @@ function buildPRText({ owner, repo, baseBranch, currentTag, nextTag, notes }: { 
   return { title, body: parts.join('\n') };
 }
 
-run();
+void run();

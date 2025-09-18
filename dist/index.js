@@ -30220,7 +30220,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const fs_1 = __nccwpck_require__(9896);
 const core = __importStar(__nccwpck_require__(7484));
 const github_1 = __nccwpck_require__(3228);
 // Wrapper function to set output and log it
@@ -30231,10 +30230,9 @@ function setOutputWithLog(name, value) {
 //
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a;
         try {
             core.info('Starting create-release-pr action');
-            const token = (core.getInput('github-token') || process.env.GITHUB_TOKEN);
+            const token = core.getInput('github-token') || process.env.GITHUB_TOKEN;
             if (!token)
                 throw new Error('Missing github-token');
             const repoFull = process.env.GITHUB_REPOSITORY || '';
@@ -30248,28 +30246,27 @@ function run() {
             const labelPatch = core.getInput('label-patch') || 'bump:patch';
             const tagPrefix = core.getInput('tag-prefix') || 'v';
             const releaseCfgPath = core.getInput('configuration_file_path') || undefined;
-            const eventName = process.env.GITHUB_EVENT_NAME;
-            const eventPath = process.env.GITHUB_EVENT_PATH;
-            const event = eventPath && (0, fs_1.existsSync)(eventPath) ? JSON.parse((0, fs_1.readFileSync)(eventPath, 'utf8')) : {};
+            const eventName = github_1.context.eventName;
             core.debug(`Event name: ${eventName}`);
             core.debug(`Configuration: baseBranch=${baseBranch}, releaseBranch=${releaseBranch}, tagPrefix=${tagPrefix}`);
             const octokit = (0, github_1.getOctokit)(token);
             if (eventName === 'pull_request') {
                 core.info('Processing pull_request event');
-                const action = event.action;
+                const payload = github_1.context.payload;
+                const action = payload.action;
                 core.debug(`PR action: ${action}`);
                 if (action !== 'labeled' && action !== 'unlabeled') {
                     core.info('Action is not labeled/unlabeled - skipping');
                     setOutputWithLog('state', 'noop');
                     return;
                 }
-                const pr = event.pull_request;
+                const pr = payload.pull_request;
                 if (!pr) {
                     setOutputWithLog('state', 'noop');
                     return;
                 }
-                if (pr.head && pr.head.ref !== releaseBranch) {
-                    core.info(`PR is not from release branch (${(_a = pr.head) === null || _a === void 0 ? void 0 : _a.ref} != ${releaseBranch}) - skipping`);
+                if (pr.head.ref !== releaseBranch) {
+                    core.info(`PR is not from release branch (${pr.head.ref} != ${releaseBranch}) - skipping`);
                     setOutputWithLog('state', 'noop');
                     return;
                 }
@@ -30302,14 +30299,15 @@ function run() {
             }
             if (eventName === 'push') {
                 core.info('Processing push event');
-                const headSha = event.after;
+                const pushPayload = github_1.context.payload;
+                const headSha = pushPayload.after;
                 core.debug(`Head SHA: ${headSha}`);
                 let relPR;
                 try {
                     const { data } = yield octokit.rest.repos.listPullRequestsAssociatedWithCommit({ owner, repo, commit_sha: headSha });
-                    relPR = (data || []).find((p) => p.head && p.head.ref === releaseBranch);
+                    relPR = (data || []).find(p => { var _a; return ((_a = p.head) === null || _a === void 0 ? void 0 : _a.ref) === releaseBranch; });
                 }
-                catch (_b) { }
+                catch (_a) { }
                 if (relPR) {
                     core.info(`Found merged release PR: #${relPR.number}`);
                     const currentTag = yield latestTag(octokit, owner, repo, tagPrefix).catch(() => null);
@@ -30388,8 +30386,8 @@ function run() {
             return;
         }
         catch (err) {
-            core.error(`Action failed: ${(err === null || err === void 0 ? void 0 : err.message) || err}`);
-            core.setFailed(String((err === null || err === void 0 ? void 0 : err.stack) || err));
+            core.error(`Action failed: ${err instanceof Error ? err.message : String(err)}`);
+            core.setFailed(err instanceof Error ? err.stack || err.message : String(err));
             process.exit(1);
         }
     });
@@ -30473,16 +30471,16 @@ function findOpenReleasePR(octokit_1, _a) {
 }
 function ensureReleaseBranch(octokit_1, owner_1, repo_1, _a) {
     return __awaiter(this, arguments, void 0, function* (octokit, owner, repo, { baseBranch, releaseBranch }) {
-        var _b, _c;
+        var _b;
         core.debug(`Ensuring release branch: ${releaseBranch}`);
         try {
             const { data: ref } = yield octokit.rest.git.getRef({ owner, repo, ref: `heads/${releaseBranch}` });
             if (ref && ((_b = ref.object) === null || _b === void 0 ? void 0 : _b.sha)) {
-                core.debug(`Release branch exists at SHA: ${(_c = ref.object) === null || _c === void 0 ? void 0 : _c.sha}`);
+                core.debug(`Release branch exists at SHA: ${ref.object.sha}`);
                 return; // exists
             }
         }
-        catch (_d) {
+        catch (_c) {
             core.debug('Release branch does not exist, creating...');
         }
         const { data: baseRef } = yield octokit.rest.git.getRef({ owner, repo, ref: `heads/${baseBranch}` });
@@ -30513,7 +30511,7 @@ function buildPRText({ owner, repo, baseBranch, currentTag, nextTag, notes }) {
         parts.push(`\nFull Changelog: https://github.com/${owner}/${repo}/compare/${currentTag}...${baseBranch}`);
     return { title, body: parts.join('\n') };
 }
-run();
+void run();
 
 
 /***/ }),
