@@ -17,6 +17,9 @@ jobs:
       - name: Run create-release-pr action
         uses: ./
         id: release-pr
+        env:
+          ACTIONS_STEP_DEBUG: true
+          ACTIONS_RUNNER_DEBUG: true
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           base-branch: main
@@ -25,32 +28,17 @@ jobs:
           label-minor: bump:minor
           label-patch: bump:patch
 
-      - name: Show outputs
+      - name: Show outputs as JSON
         run: |
-          echo "State: ${{ steps.release-pr.outputs.state }}"
-          echo "PR Number: ${{ steps.release-pr.outputs.pr_number }}"
-          echo "PR URL: ${{ steps.release-pr.outputs.pr_url }}"
-          echo "PR Branch: ${{ steps.release-pr.outputs.pr_branch }}"
-          echo "Current Tag: ${{ steps.release-pr.outputs.current_tag }}"
-          echo "Next Tag: ${{ steps.release-pr.outputs.next_tag }}"
-          echo "Bump Level: ${{ steps.release-pr.outputs.bump_level }}"
-          echo "Release Notes (first 100 chars): ${{ steps.release-pr.outputs.release_notes }}" | head -c 100
-
-  test-debug-logs:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Run action with debug logging
-        uses: ./
-        env:
-          ACTIONS_STEP_DEBUG: true
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Run action with runner debug
-        uses: ./
-        env:
-          ACTIONS_RUNNER_DEBUG: true
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cat <<EOF | jq .
+          {
+            "state": "${{ steps.release-pr.outputs.state }}",
+            "pr_number": "${{ steps.release-pr.outputs.pr_number }}",
+            "pr_url": "${{ steps.release-pr.outputs.pr_url }}",
+            "pr_branch": "${{ steps.release-pr.outputs.pr_branch }}",
+            "current_tag": "${{ steps.release-pr.outputs.current_tag }}",
+            "next_tag": "${{ steps.release-pr.outputs.next_tag }}",
+            "bump_level": "${{ steps.release-pr.outputs.bump_level }}",
+            "release_notes": "${{ steps.release-pr.outputs.release_notes }}"
+          }
+          EOF
