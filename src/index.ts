@@ -556,11 +556,15 @@ function buildPRText({
 	parts.push("> **Note:** This is a preview of the release notes that will be published when this PR is merged.");
 	parts.push("> Links in the changelog may not work until the release is created.");
 	parts.push("");
+	parts.push("---");
+	parts.push("");
 	if (notes) {
 		parts.push(notes);
 	} else {
 		parts.push("_Release notes will be generated here_");
 	}
+	parts.push("");
+	parts.push("---");
 
 	return { title, body: parts.join("\n") };
 }
