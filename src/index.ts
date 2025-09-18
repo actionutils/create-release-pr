@@ -156,18 +156,20 @@ function input(name: string): string | undefined {
 
 function setOutputs(map: Record<string, string>): void {
   const outPath = process.env.GITHUB_OUTPUT;
-  const lines: string[] = [];
-  for (const [k, v] of Object.entries(map)) {
-    if (v === undefined) continue;
-    lines.push(`${k}=${escapeNewlines(String(v))}`);
+  if (!outPath) return;
+  let buf = '';
+  for (const [name, value] of Object.entries(map)) {
+    if (value === undefined || value === null) continue;
+    const v = String(value);
+    if (v.includes('\n')) {
+      const delim = `EOF_${Math.random().toString(36).slice(2, 8)}`;
+      buf += `${name}<<${delim}\n${v}\n${delim}\n`;
+    } else {
+      buf += `${name}=${v}\n`;
+    }
   }
-  if (outPath) appendFileSync(outPath, lines.join('\n') + '\n');
-  console.log('Outputs:\n' + lines.map(l => '  ' + l).join('\n'));
-}
-
-function escapeNewlines(s: string): string {
-  if (!s.includes('\n')) return s;
-  return `<<EOF\n${s}\nEOF`;
+  if (buf) appendFileSync(outPath, buf);
+  console.log('Outputs written: ' + Object.keys(map).join(', '));
 }
 
 function coreError(msg: string): void {
