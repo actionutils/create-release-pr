@@ -25966,13 +25966,19 @@ function run() {
             const gh = makeClient(token);
             if (eventName === 'pull_request') {
                 const action = event.action;
-                if (action !== 'labeled' && action !== 'unlabeled')
-                    return writeOutputs({ state: 'noop' });
+                if (action !== 'labeled' && action !== 'unlabeled') {
+                    core.setOutput('state', 'noop');
+                    return;
+                }
                 const pr = event.pull_request;
-                if (!pr)
-                    return writeOutputs({ state: 'noop' });
-                if (pr.head && pr.head.ref !== releaseBranch)
-                    return writeOutputs({ state: 'noop' });
+                if (!pr) {
+                    core.setOutput('state', 'noop');
+                    return;
+                }
+                if (pr.head && pr.head.ref !== releaseBranch) {
+                    core.setOutput('state', 'noop');
+                    return;
+                }
                 const currentTag = yield latestTag(gh, owner, repo, tagPrefix).catch(() => null);
                 const bumpLevel = detectBump(pr.labels || [], { labelMajor, labelMinor, labelPatch });
                 const nextTag = bumpLevel === 'unknown' ? '' : calcNext(tagPrefix, currentTag, bumpLevel);
@@ -25983,16 +25989,15 @@ function run() {
                 }).catch(() => '');
                 const { title, body } = buildPRText({ owner, repo, baseBranch, currentTag, nextTag, notes });
                 yield gh.patch(`/repos/${owner}/${repo}/pulls/${pr.number}`, { title, body });
-                return writeOutputs({
-                    state: 'pr_changed',
-                    pr_number: String(pr.number),
-                    pr_url: pr.html_url,
-                    pr_branch: releaseBranch,
-                    current_tag: currentTag || '',
-                    next_tag: nextTag || '',
-                    bump_level: bumpLevel,
-                    release_notes: notes,
-                });
+                core.setOutput('state', 'pr_changed');
+                core.setOutput('pr_number', String(pr.number));
+                core.setOutput('pr_url', pr.html_url);
+                core.setOutput('pr_branch', releaseBranch);
+                core.setOutput('current_tag', currentTag || '');
+                core.setOutput('next_tag', nextTag || '');
+                core.setOutput('bump_level', bumpLevel);
+                core.setOutput('release_notes', notes);
+                return;
             }
             if (eventName === 'push') {
                 const headSha = event.after;
@@ -26008,16 +26013,15 @@ function run() {
                     const currentTag = yield latestTag(gh, owner, repo, tagPrefix).catch(() => null);
                     const bumpLevel = detectBump(relPR.labels || [], { labelMajor, labelMinor, labelPatch });
                     const nextTag = bumpLevel === 'unknown' ? '' : calcNext(tagPrefix, currentTag, bumpLevel);
-                    return writeOutputs({
-                        state: 'release_required',
-                        pr_number: '',
-                        pr_url: '',
-                        pr_branch: '',
-                        current_tag: currentTag || '',
-                        next_tag: nextTag || '',
-                        bump_level: bumpLevel,
-                        release_notes: '',
-                    });
+                    core.setOutput('state', 'release_required');
+                    core.setOutput('pr_number', '');
+                    core.setOutput('pr_url', '');
+                    core.setOutput('pr_branch', '');
+                    core.setOutput('current_tag', currentTag || '');
+                    core.setOutput('next_tag', nextTag || '');
+                    core.setOutput('bump_level', bumpLevel);
+                    core.setOutput('release_notes', '');
+                    return;
                 }
                 const currentTag = yield latestTag(gh, owner, repo, tagPrefix).catch(() => null);
                 const existing = yield findOpenReleasePR(gh, { owner, repo, baseBranch, releaseBranch }).catch(() => null);
@@ -26031,16 +26035,15 @@ function run() {
                     }).catch(() => '');
                     const { title, body } = buildPRText({ owner, repo, baseBranch, currentTag, nextTag, notes });
                     const updated = yield gh.patch(`/repos/${owner}/${repo}/pulls/${existing.number}`, { title, body });
-                    return writeOutputs({
-                        state: 'pr_changed',
-                        pr_number: String(updated.number),
-                        pr_url: updated.html_url,
-                        pr_branch: releaseBranch,
-                        current_tag: currentTag || '',
-                        next_tag: nextTag || '',
-                        bump_level: bumpLevel,
-                        release_notes: notes,
-                    });
+                    core.setOutput('state', 'pr_changed');
+                    core.setOutput('pr_number', String(updated.number));
+                    core.setOutput('pr_url', updated.html_url);
+                    core.setOutput('pr_branch', releaseBranch);
+                    core.setOutput('current_tag', currentTag || '');
+                    core.setOutput('next_tag', nextTag || '');
+                    core.setOutput('bump_level', bumpLevel);
+                    core.setOutput('release_notes', notes);
+                    return;
                 }
                 yield ensureReleaseBranch(gh, owner, repo, { baseBranch, releaseBranch });
                 const bumpLevel = 'unknown';
@@ -26058,18 +26061,18 @@ function run() {
                     body,
                     draft: false,
                 });
-                return writeOutputs({
-                    state: 'pr_changed',
-                    pr_number: String(created.number),
-                    pr_url: created.html_url,
-                    pr_branch: releaseBranch,
-                    current_tag: currentTag || '',
-                    next_tag: nextTag || '',
-                    bump_level: bumpLevel,
-                    release_notes: notes,
-                });
+                core.setOutput('state', 'pr_changed');
+                core.setOutput('pr_number', String(created.number));
+                core.setOutput('pr_url', created.html_url);
+                core.setOutput('pr_branch', releaseBranch);
+                core.setOutput('current_tag', currentTag || '');
+                core.setOutput('next_tag', nextTag || '');
+                core.setOutput('bump_level', bumpLevel);
+                core.setOutput('release_notes', notes);
+                return;
             }
-            return writeOutputs({ state: 'noop' });
+            core.setOutput('state', 'noop');
+            return;
         }
         catch (err) {
             core.setFailed(String((err === null || err === void 0 ? void 0 : err.stack) || err));
@@ -26077,13 +26080,7 @@ function run() {
         }
     });
 }
-function writeOutputs(map) {
-    for (const [k, v] of Object.entries(map)) {
-        if (v === undefined)
-            continue;
-        core.setOutput(k, v);
-    }
-}
+// no helper: use core.setOutput directly where needed
 function makeClient(token) {
     const base = 'https://api.github.com';
     function request(method, path, body) {
