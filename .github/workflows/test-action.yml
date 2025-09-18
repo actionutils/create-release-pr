@@ -30,15 +30,4 @@ jobs:
 
       - name: Show outputs as JSON
         run: |
-          cat <<EOF | jq .
-          {
-            "state": "${{ steps.release-pr.outputs.state }}",
-            "pr_number": "${{ steps.release-pr.outputs.pr_number }}",
-            "pr_url": "${{ steps.release-pr.outputs.pr_url }}",
-            "pr_branch": "${{ steps.release-pr.outputs.pr_branch }}",
-            "current_tag": "${{ steps.release-pr.outputs.current_tag }}",
-            "next_tag": "${{ steps.release-pr.outputs.next_tag }}",
-            "bump_level": "${{ steps.release-pr.outputs.bump_level }}",
-            "release_notes": "${{ steps.release-pr.outputs.release_notes }}"
-          }
-          EOF
+          echo '${{ toJSON(steps.release-pr.outputs) }}' | jq .
