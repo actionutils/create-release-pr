@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Run type check
+        run: npm run typecheck
+
+      - name: Run build
+        run: npm run build
+
+      - name: Check for uncommitted changes in dist
+        run: |
+          if [ -n "$(git status --porcelain dist/)" ]; then
+            echo "::error::Uncommitted changes found in dist directory after build"
+            echo "Please run 'npm run build' locally and commit the changes"
+            git diff dist/
+            exit 1
+          fi
