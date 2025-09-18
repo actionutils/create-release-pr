@@ -3,16 +3,11 @@
 
 import { readFileSync, existsSync } from 'fs';
 import * as core from '@actions/core';
+import { getOctokit, context as ghContext } from '@actions/github';
 
 type BumpLevel = 'major' | 'minor' | 'patch' | 'unknown';
 
-type GhClient = {
-  get: <T = any>(path: string) => Promise<T>;
-  post: <T = any>(path: string, body?: any) => Promise<T>;
-  patch: <T = any>(path: string, body?: any) => Promise<T>;
-  put: <T = any>(path: string, body?: any) => Promise<T>;
-  del: <T = any>(path: string) => Promise<T>;
-};
+//
 
 async function run(): Promise<void> {
   try {
@@ -35,7 +30,7 @@ async function run(): Promise<void> {
     const eventPath = process.env.GITHUB_EVENT_PATH;
     const event = eventPath && existsSync(eventPath) ? JSON.parse(readFileSync(eventPath, 'utf8')) : {} as any;
 
-    const gh = makeClient(token);
+    const octokit = getOctokit(token);
 
     if (eventName === 'pull_request') {
       const action = (event as any).action;
@@ -43,16 +38,16 @@ async function run(): Promise<void> {
       const pr = (event as any).pull_request;
       if (!pr) { core.setOutput('state', 'noop'); return; }
       if (pr.head && pr.head.ref !== releaseBranch) { core.setOutput('state', 'noop'); return; }
-      const currentTag = await latestTag(gh, owner, repo, tagPrefix).catch(() => null);
+      const currentTag = await latestTag(octokit, owner, repo, tagPrefix).catch(() => null);
       const bumpLevel = detectBump(pr.labels || [], { labelMajor, labelMinor, labelPatch });
       const nextTag = bumpLevel === 'unknown' ? '' : calcNext(tagPrefix, currentTag, bumpLevel);
-      const notes = await generateNotes(gh, owner, repo, {
+      const notes = await generateNotes(octokit, owner, repo, {
         tagName: nextTag || `${tagPrefix}next`,
         target: baseBranch,
         configuration_file_path: releaseCfgPath,
       }).catch(() => '');
       const { title, body } = buildPRText({ owner, repo, baseBranch, currentTag, nextTag, notes });
-      await gh.patch(`/repos/${owner}/${repo}/pulls/${pr.number}`, { title, body });
+      await octokit.rest.pulls.update({ owner, repo, pull_number: pr.number, title, body });
       core.setOutput('state', 'pr_changed');
       core.setOutput('pr_number', String(pr.number));
       core.setOutput('pr_url', pr.html_url);
@@ -66,15 +61,13 @@ async function run(): Promise<void> {
 
     if (eventName === 'push') {
       const headSha: string = (event as any).after;
-      let associated: any[] = [];
+      let relPR: any | undefined;
       try {
-        associated = await gh.get(`/repos/${owner}/${repo}/commits/${headSha}/pulls`);
-      } catch {
-        associated = [];
-      }
-      const relPR = associated.find(p => p.head && p.head.ref === releaseBranch);
+        const { data } = await octokit.rest.repos.listPullRequestsAssociatedWithCommit({ owner, repo, commit_sha: headSha });
+        relPR = (data || []).find((p: any) => p.head && p.head.ref === releaseBranch);
+      } catch {}
       if (relPR) {
-        const currentTag = await latestTag(gh, owner, repo, tagPrefix).catch(() => null);
+        const currentTag = await latestTag(octokit, owner, repo, tagPrefix).catch(() => null);
         const bumpLevel = detectBump(relPR.labels || [], { labelMajor, labelMinor, labelPatch });
         const nextTag = bumpLevel === 'unknown' ? '' : calcNext(tagPrefix, currentTag, bumpLevel);
         core.setOutput('state', 'release_required');
@@ -88,19 +81,19 @@ async function run(): Promise<void> {
         return;
       }
 
-      const currentTag = await latestTag(gh, owner, repo, tagPrefix).catch(() => null);
-      const existing = await findOpenReleasePR(gh, { owner, repo, baseBranch, releaseBranch }).catch(() => null);
+      const currentTag = await latestTag(octokit, owner, repo, tagPrefix).catch(() => null);
+      const existing = await findOpenReleasePR(octokit, { owner, repo, baseBranch, releaseBranch }).catch(() => null);
 
       if (existing && existing.number) {
         const bumpLevel = detectBump(existing.labels || [], { labelMajor, labelMinor, labelPatch });
         const nextTag = bumpLevel === 'unknown' ? '' : calcNext(tagPrefix, currentTag, bumpLevel);
-        const notes = await generateNotes(gh, owner, repo, {
+        const notes = await generateNotes(octokit, owner, repo, {
           tagName: nextTag || `${tagPrefix}next`,
           target: baseBranch,
           configuration_file_path: releaseCfgPath,
         }).catch(() => '');
         const { title, body } = buildPRText({ owner, repo, baseBranch, currentTag, nextTag, notes });
-        const updated = await gh.patch(`/repos/${owner}/${repo}/pulls/${existing.number}`, { title, body });
+        const { data: updated } = await octokit.rest.pulls.update({ owner, repo, pull_number: existing.number, title, body });
         core.setOutput('state', 'pr_changed');
         core.setOutput('pr_number', String(updated.number));
         core.setOutput('pr_url', updated.html_url);
@@ -112,22 +105,16 @@ async function run(): Promise<void> {
         return;
       }
 
-      await ensureReleaseBranch(gh, owner, repo, { baseBranch, releaseBranch });
+      await ensureReleaseBranch(octokit, owner, repo, { baseBranch, releaseBranch });
       const bumpLevel: BumpLevel = 'unknown';
       const nextTag = '';
-      const notes = await generateNotes(gh, owner, repo, {
+      const notes = await generateNotes(octokit, owner, repo, {
         tagName: `${tagPrefix}next`,
         target: baseBranch,
         configuration_file_path: releaseCfgPath,
       }).catch(() => '');
       const { title, body } = buildPRText({ owner, repo, baseBranch, currentTag, nextTag, notes });
-      const created = await gh.post(`/repos/${owner}/${repo}/pulls`, {
-        title,
-        head: releaseBranch,
-        base: baseBranch,
-        body,
-        draft: false,
-      });
+      const { data: created } = await octokit.rest.pulls.create({ owner, repo, title, head: releaseBranch, base: baseBranch, body, draft: false });
       core.setOutput('state', 'pr_changed');
       core.setOutput('pr_number', String(created.number));
       core.setOutput('pr_url', created.html_url);
@@ -146,39 +133,10 @@ async function run(): Promise<void> {
     process.exit(1);
   }
 }
-function makeClient(token: string): GhClient {
-  const base = 'https://api.github.com';
-  async function request<T>(method: string, path: string, body?: any): Promise<T> {
-    const url = path.startsWith('http') ? path : base + path;
-    const res = await fetch(url, {
-      method,
-      headers: {
-        authorization: `Bearer ${token}`,
-        accept: 'application/vnd.github+json',
-        'content-type': 'application/json',
-        'user-agent': 'actionutils-create-release-pr',
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`${method} ${path} -> ${res.status}: ${text}`);
-    }
-    const ct = res.headers.get('content-type') || '';
-    if (ct.includes('application/json')) return (await res.json()) as T;
-    return (await res.text()) as any as T;
-  }
-  return {
-    get: (p) => request('GET', p),
-    post: (p, b) => request('POST', p, b),
-    patch: (p, b) => request('PATCH', p, b),
-    put: (p, b) => request('PUT', p, b),
-    del: (p) => request('DELETE', p),
-  };
-}
+// GitHub REST is handled via @actions/github (Octokit)
 
-async function latestTag(gh: GhClient, owner: string, repo: string, prefix: string): Promise<string | null> {
-  const tags = await gh.get<any[]>(`/repos/${owner}/${repo}/tags?per_page=100`);
+async function latestTag(octokit: ReturnType<typeof getOctokit>, owner: string, repo: string, prefix: string): Promise<string | null> {
+  const tags = await octokit.paginate(octokit.rest.repos.listTags, { owner, repo, per_page: 100 });
   const semvers = (tags || [])
     .map(t => t.name as string)
     .filter(n => n && n.startsWith(prefix))
@@ -222,49 +180,46 @@ function calcNext(prefix: string, currentTag: string | null, bumpLevel: BumpLeve
 }
 
 async function generateNotes(
-  gh: GhClient,
+  octokit: ReturnType<typeof getOctokit>,
   owner: string,
   repo: string,
   { tagName, target, configuration_file_path }: { tagName: string; target: string; configuration_file_path?: string }
 ): Promise<string> {
-  const body: any = { tag_name: tagName, target_commitish: target };
-  if (configuration_file_path) body.configuration_file_path = configuration_file_path;
-  const res = await gh.post<{ body?: string }>(`/repos/${owner}/${repo}/releases/generate-notes`, body);
-  return res.body || '';
+  const res = await octokit.rest.repos.generateReleaseNotes({
+    owner,
+    repo,
+    tag_name: tagName,
+    target_commitish: target,
+    configuration_file_path,
+  });
+  return res.data.body || '';
 }
 
 async function findOpenReleasePR(
-  gh: GhClient,
+  octokit: ReturnType<typeof getOctokit>,
   { owner, repo, baseBranch, releaseBranch }: { owner: string; repo: string; baseBranch: string; releaseBranch: string }
 ) {
-  const prs = await gh.get<any[]>(`/repos/${owner}/${repo}/pulls?state=open&base=${encodeURIComponent(baseBranch)}&head=${encodeURIComponent(owner + ':' + releaseBranch)}`);
+  const { data: prs } = await octokit.rest.pulls.list({ owner, repo, state: 'open', base: baseBranch, head: `${owner}:${releaseBranch}` });
   return Array.isArray(prs) && prs.length ? prs[0] : null;
 }
 
 async function ensureReleaseBranch(
-  gh: GhClient,
+  octokit: ReturnType<typeof getOctokit>,
   owner: string,
   repo: string,
   { baseBranch, releaseBranch }: { baseBranch: string; releaseBranch: string }
 ) {
   try {
-    const ref = await gh.get<any>(`/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(releaseBranch)}`);
-    if (ref && ref.object && ref.object.sha) return; // exists
+    const { data: ref } = await octokit.rest.git.getRef({ owner, repo, ref: `heads/${releaseBranch}` });
+    if (ref && (ref as any).object?.sha) return; // exists
   } catch {}
-  const baseRef = await gh.get<any>(`/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(baseBranch)}`);
-  const baseSha = baseRef.object.sha as string;
-  const baseCommit = await gh.get<any>(`/repos/${owner}/${repo}/git/commits/${baseSha}`);
-  const treeSha = baseCommit.tree.sha as string;
-  const newCommit = await gh.post<any>(`/repos/${owner}/${repo}/git/commits`, {
-    message: 'chore(release): prepare release PR (empty commit)',
-    tree: treeSha,
-    parents: [baseSha],
-  });
-  const newSha = newCommit.sha as string;
-  await gh.post(`/repos/${owner}/${repo}/git/refs`, {
-    ref: `refs/heads/${releaseBranch}`,
-    sha: newSha,
-  });
+  const { data: baseRef } = await octokit.rest.git.getRef({ owner, repo, ref: `heads/${baseBranch}` });
+  const baseSha = (baseRef as any).object.sha as string;
+  const { data: baseCommit } = await octokit.rest.git.getCommit({ owner, repo, commit_sha: baseSha });
+  const treeSha = (baseCommit as any).tree.sha as string;
+  const { data: newCommit } = await octokit.rest.git.createCommit({ owner, repo, message: 'chore(release): prepare release PR (empty commit)', tree: treeSha, parents: [baseSha] });
+  const newSha = (newCommit as any).sha as string;
+  await octokit.rest.git.createRef({ owner, repo, ref: `refs/heads/${releaseBranch}`, sha: newSha });
 }
 
 function buildPRText({ owner, repo, baseBranch, currentTag, nextTag, notes }: { owner: string; repo: string; baseBranch: string; currentTag: string | null; nextTag: string; notes: string; }) {
