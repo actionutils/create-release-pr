@@ -17,7 +17,7 @@ jobs:
       issues: write
     runs-on: ubuntu-latest
     outputs:
-      release_required: ${{ steps.release-pr.state == 'release_required'}}
+      release_required: ${{ steps.release-pr.outputs.state == 'release_required'}}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
