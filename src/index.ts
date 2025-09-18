@@ -527,21 +527,6 @@ function buildPRText({
 	parts.push(
 		"_Prepared by [create-release-pr](https://github.com/actionutils/create-release-pr)_",
 	);
-
-	// Add workflow update metadata
-	const runId = process.env.GITHUB_RUN_ID;
-	const runNumber = process.env.GITHUB_RUN_NUMBER;
-	const workflow = process.env.GITHUB_WORKFLOW;
-	const updateTime = new Date().toISOString();
-
-	if (runId && workflow) {
-		const workflowUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}`;
-		parts.push("");
-		parts.push(
-			`<sub>Last updated: ${updateTime} by [${workflow} #${runNumber || runId}](${workflowUrl})</sub>`,
-		);
-	}
-
 	parts.push("");
 
 	// Build the release info table
@@ -592,6 +577,20 @@ function buildPRText({
 	}
 	parts.push("");
 	parts.push("---");
+
+	// Add workflow update metadata at the end, right-aligned
+	const runId = process.env.GITHUB_RUN_ID;
+	const runNumber = process.env.GITHUB_RUN_NUMBER;
+	const workflow = process.env.GITHUB_WORKFLOW;
+	const updateTime = new Date().toISOString();
+
+	if (runId && workflow) {
+		const workflowUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}`;
+		parts.push("");
+		parts.push(
+			`<div align="right"><sub>Last updated: <a href="${workflowUrl}">${updateTime}</a> by ${workflow} #${runNumber || runId}</sub></div>`,
+		);
+	}
 
 	return { title, body: parts.join("\n") };
 }
