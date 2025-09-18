@@ -30353,7 +30353,6 @@ function run() {
         }
     });
 }
-// GitHub REST is handled via @actions/github (Octokit)
 function latestTag(octokit, owner, repo, prefix) {
     return __awaiter(this, void 0, void 0, function* () {
         const tags = yield octokit.paginate(octokit.rest.repos.listTags, { owner, repo, per_page: 100 });

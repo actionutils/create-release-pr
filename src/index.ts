@@ -133,7 +133,6 @@ async function run(): Promise<void> {
     process.exit(1);
   }
 }
-// GitHub REST is handled via @actions/github (Octokit)
 
 async function latestTag(octokit: ReturnType<typeof getOctokit>, owner: string, repo: string, prefix: string): Promise<string | null> {
   const tags = await octokit.paginate(octokit.rest.repos.listTags, { owner, repo, per_page: 100 });
