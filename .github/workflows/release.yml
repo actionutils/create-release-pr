@@ -54,5 +54,7 @@ jobs:
       attestations: write # Required for build provenance attestation
       actions: read      # Required for SLSA generator
     uses: actionutils/trusted-tag-releaser/.github/workflows/trusted-release-workflow.yml@v2
+    with:
+      environment: release
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
