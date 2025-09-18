@@ -7,6 +7,12 @@ import { getOctokit, context as ghContext } from '@actions/github';
 
 type BumpLevel = 'major' | 'minor' | 'patch' | 'unknown';
 
+// Wrapper function to set output and log it
+function setOutputWithLog(name: string, value: string): void {
+  core.info(`Setting output: ${name}=${value}`);
+  core.setOutput(name, value);
+}
+
 //
 
 async function run(): Promise<void> {
@@ -41,14 +47,17 @@ async function run(): Promise<void> {
       core.debug(`PR action: ${action}`);
       if (action !== 'labeled' && action !== 'unlabeled') {
         core.info('Action is not labeled/unlabeled - skipping');
-        core.setOutput('state', 'noop');
+        setOutputWithLog('state', 'noop');
         return;
       }
       const pr = (event as any).pull_request;
-      if (!pr) { core.setOutput('state', 'noop'); return; }
+      if (!pr) {
+        setOutputWithLog('state', 'noop');
+        return;
+      }
       if (pr.head && pr.head.ref !== releaseBranch) {
         core.info(`PR is not from release branch (${pr.head?.ref} != ${releaseBranch}) - skipping`);
-        core.setOutput('state', 'noop');
+        setOutputWithLog('state', 'noop');
         return;
       }
       core.info(`Processing release PR #${pr.number}`);
@@ -67,14 +76,14 @@ async function run(): Promise<void> {
       core.info(`Updating PR #${pr.number} with new title and body`);
       await octokit.rest.pulls.update({ owner, repo, pull_number: pr.number, title, body });
       core.info('PR updated successfully');
-      core.setOutput('state', 'pr_changed');
-      core.setOutput('pr_number', String(pr.number));
-      core.setOutput('pr_url', pr.html_url);
-      core.setOutput('pr_branch', releaseBranch);
-      core.setOutput('current_tag', currentTag || '');
-      core.setOutput('next_tag', nextTag || '');
-      core.setOutput('bump_level', bumpLevel);
-      core.setOutput('release_notes', notes);
+      setOutputWithLog('state', 'pr_changed');
+      setOutputWithLog('pr_number', String(pr.number));
+      setOutputWithLog('pr_url', pr.html_url);
+      setOutputWithLog('pr_branch', releaseBranch);
+      setOutputWithLog('current_tag', currentTag || '');
+      setOutputWithLog('next_tag', nextTag || '');
+      setOutputWithLog('bump_level', bumpLevel);
+      setOutputWithLog('release_notes', notes);
       return;
     }
 
@@ -95,14 +104,14 @@ async function run(): Promise<void> {
         core.info(`Detected bump level: ${bumpLevel}`);
         const nextTag = bumpLevel === 'unknown' ? '' : calcNext(tagPrefix, currentTag, bumpLevel);
         if (nextTag) core.info(`Release required for: ${nextTag}`);
-        core.setOutput('state', 'release_required');
-        core.setOutput('pr_number', '');
-        core.setOutput('pr_url', '');
-        core.setOutput('pr_branch', '');
-        core.setOutput('current_tag', currentTag || '');
-        core.setOutput('next_tag', nextTag || '');
-        core.setOutput('bump_level', bumpLevel);
-        core.setOutput('release_notes', '');
+        setOutputWithLog('state', 'release_required');
+        setOutputWithLog('pr_number', '');
+        setOutputWithLog('pr_url', '');
+        setOutputWithLog('pr_branch', '');
+        setOutputWithLog('current_tag', currentTag || '');
+        setOutputWithLog('next_tag', nextTag || '');
+        setOutputWithLog('bump_level', bumpLevel);
+        setOutputWithLog('release_notes', '');
         return;
       }
 
@@ -126,14 +135,14 @@ async function run(): Promise<void> {
         core.info(`Updating PR #${existing.number}`);
         const { data: updated } = await octokit.rest.pulls.update({ owner, repo, pull_number: existing.number, title, body });
         core.info('PR updated successfully');
-        core.setOutput('state', 'pr_changed');
-        core.setOutput('pr_number', String(updated.number));
-        core.setOutput('pr_url', updated.html_url);
-        core.setOutput('pr_branch', releaseBranch);
-        core.setOutput('current_tag', currentTag || '');
-        core.setOutput('next_tag', nextTag || '');
-        core.setOutput('bump_level', bumpLevel);
-        core.setOutput('release_notes', notes);
+        setOutputWithLog('state', 'pr_changed');
+        setOutputWithLog('pr_number', String(updated.number));
+        setOutputWithLog('pr_url', updated.html_url);
+        setOutputWithLog('pr_branch', releaseBranch);
+        setOutputWithLog('current_tag', currentTag || '');
+        setOutputWithLog('next_tag', nextTag || '');
+        setOutputWithLog('bump_level', bumpLevel);
+        setOutputWithLog('release_notes', notes);
         return;
       }
 
@@ -151,19 +160,19 @@ async function run(): Promise<void> {
       core.info(`Creating release PR from ${releaseBranch} to ${baseBranch}`);
       const { data: created } = await octokit.rest.pulls.create({ owner, repo, title, head: releaseBranch, base: baseBranch, body, draft: false });
       core.info(`Created release PR #${created.number}`);
-      core.setOutput('state', 'pr_changed');
-      core.setOutput('pr_number', String(created.number));
-      core.setOutput('pr_url', created.html_url);
-      core.setOutput('pr_branch', releaseBranch);
-      core.setOutput('current_tag', currentTag || '');
-      core.setOutput('next_tag', nextTag || '');
-      core.setOutput('bump_level', bumpLevel);
-      core.setOutput('release_notes', notes);
+      setOutputWithLog('state', 'pr_changed');
+      setOutputWithLog('pr_number', String(created.number));
+      setOutputWithLog('pr_url', created.html_url);
+      setOutputWithLog('pr_branch', releaseBranch);
+      setOutputWithLog('current_tag', currentTag || '');
+      setOutputWithLog('next_tag', nextTag || '');
+      setOutputWithLog('bump_level', bumpLevel);
+      setOutputWithLog('release_notes', notes);
       return;
     }
 
     core.info(`Event '${eventName}' does not require action`);
-    core.setOutput('state', 'noop');
+    setOutputWithLog('state', 'noop');
     return;
   } catch (err: any) {
     core.error(`Action failed: ${err?.message || err}`);
