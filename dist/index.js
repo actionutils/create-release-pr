@@ -30340,7 +30340,7 @@ function ensureReleaseBranch(octokit_1, owner_1, repo_1, _a) {
         const { data: newCommit } = yield octokit.rest.git.createCommit({
             owner,
             repo,
-            message: "chore(release): prepare release PR (empty commit)",
+            message: "chore(release): prepare release PR",
             tree: treeSha,
             parents: [baseSha],
         });

@@ -446,7 +446,7 @@ async function ensureReleaseBranch(
 	const { data: newCommit } = await octokit.rest.git.createCommit({
 		owner,
 		repo,
-		message: "chore(release): prepare release PR (empty commit)",
+		message: "chore(release): prepare release PR",
 		tree: treeSha,
 		parents: [baseSha],
 	});
