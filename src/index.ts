@@ -187,7 +187,7 @@ function makeClient(token: string): GhClient {
         'user-agent': 'actionutils-create-release-pr',
       },
       body: body ? JSON.stringify(body) : undefined,
-    } as RequestInit);
+    });
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       throw new Error(`${method} ${path} -> ${res.status}: ${text}`);
@@ -313,4 +313,3 @@ function buildPRText({ owner, repo, baseBranch, currentTag, nextTag, notes }: { 
 }
 
 run();
-
