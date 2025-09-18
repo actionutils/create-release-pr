@@ -30434,7 +30434,7 @@ function buildPRText({ owner, repo, baseBranch, currentTag, nextTag, notes, }) {
     parts.push("### 📝 Release Notes Preview");
     parts.push("");
     parts.push("> **Note:** This is a preview of the release notes that will be published when this PR is merged.");
-    parts.push("> Links in the changelog may not work until the release is created.");
+    parts.push("> The Full Changelog link may not work until the new tag is released.");
     parts.push("");
     parts.push("---");
     parts.push("");
