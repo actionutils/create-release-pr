@@ -535,7 +535,9 @@ function buildPRText({
 	if (runId && workflow) {
 		const workflowUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}`;
 		parts.push("");
-		parts.push(`<sub>Last updated: ${updateTime} by [${workflow} #${runNumber || runId}](${workflowUrl})</sub>`);
+		parts.push(
+			`<sub>Last updated: ${updateTime} by [${workflow} #${runNumber || runId}](${workflowUrl})</sub>`,
+		);
 	}
 
 	parts.push("");
