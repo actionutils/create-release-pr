@@ -4,7 +4,7 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "build": "ncc build src/index.ts -o dist --transpile-only",
+    "build": "ncc build src/index.ts -o dist",
     "lint": "oxlint --type-aware src",
     "typecheck": "tsc --noEmit",
     "format": "biome format --write src",
