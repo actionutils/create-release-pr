@@ -524,7 +524,9 @@ function buildPRText({
 	const parts: string[] = [];
 	parts.push("## 🚀 Release PR");
 	parts.push("");
-	parts.push("_Prepared by create-release-pr_");
+	parts.push(
+		"_Prepared by [create-release-pr](https://github.com/actionutils/create-release-pr)_",
+	);
 
 	// Add workflow update metadata
 	const runId = process.env.GITHUB_RUN_ID;
