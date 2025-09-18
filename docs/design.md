@@ -6,21 +6,24 @@
 - The release PR description shows release notes generated via GitHub’s Generate Release Notes API.
 
 ## High-Level Behavior
-- Trigger: by default on `push` to the default branch (e.g., `main`).
+- Triggers:
+  - `push` to the default branch (e.g., `main`).
+  - `pull_request` with actions `labeled`/`unlabeled` (to react when bump labels are changed).
 - Ignore condition: if the push to `main` is caused by merging the release PR created by this action, do nothing (prevent recursion).
-- Otherwise on `push` to `main`:
-  1) Look for an existing release PR.
-     - If found, try to “merge the existing release PR”.
-       - If mergeable, auto-merge (configurable).
-       - If merge is blocked/fails, just update its body and exit (see below).
+- Behavior:
+  1) Look for an existing open release PR (by head branch name, e.g., `release/pr`).
+     - If found, recompute current/next tag and regenerate release notes.
+     - Update the PR title and description accordingly. Do not merge the PR automatically.
   2) If not found, create a new release PR.
      - Use Generate Release Notes API output in the PR body.
-     - If labels indicate the next tag, compute and display it; if not, show “next tag: unknown”.
+     - If labels indicate the next tag, compute and show it; if not, treat “next tag” as unknown and adapt the title/body accordingly.
 
 ## Release PR Basics
 - Branch strategy:
-  - Support either a timestamped branch like `release/<yyyy-mm-dd-hhmmss>` or a stable branch name like `release/pr`.
-  - Reusing a single branch is simpler and idempotent; default to `release/pr`.
+  - Default to a stable branch name `release/pr` for simplicity.
+  - After the release PR is merged, handle the next cycle cleanly:
+    - If the `release/pr` branch is deleted on merge (common setting), recreate it from the base branch on the next run; or
+    - Optionally consider a variant like `release/pr-from-<current-tag>` for clarity (future option).
 - Empty commit:
   - When there is no diff against the base, create an empty commit so a PR can be opened.
   - Achieved by creating a new commit that points to the same tree as base.
@@ -28,15 +31,17 @@
   - Put metadata at the top (current tag, next tag or unknown, target range, source API info).
   - Then append the raw or lightly formatted output of Generate Release Notes API.
 - Title:
-  - For example: `release: vX.Y.Z` or `release: next (tag TBD)`, customizable via template.
+  - When next tag is known: `Release for <next-tag>` (e.g., `Release for v1.2.4`).
+  - When unknown: `Release for new version`.
+  - The action may update the title when labels change and the next tag becomes known.
 - Labels:
   - Recognize `bump:major`, `bump:minor`, `bump:patch`. If present, compute next tag accordingly.
   - If no label, next tag remains “unknown”.
 
 ## Event Flow Details
-- On push to main: check for existing PR → (if present) attempt merge → (if absent) create PR.
-- Recursion guard: use “List pull requests associated with a commit” for the pushed `head` commit.
-  - If it is recognized as the action-managed release PR (by head branch name/title prefix/special label `release-pr`), no-op.
+- On push to main: check for existing PR → update if present → create if absent.
+- On pull_request labeled/unlabeled: if the PR’s head branch matches the release branch, update title/body (recompute next tag and notes).
+- Recursion guard: use the PR head branch name alone to identify the managed release PR (e.g., `release/pr`) and no-op on its merge push.
 
 ## Next Tag Resolution
 - Assumptions:
@@ -48,23 +53,23 @@
     - `bump:minor` → `v1.3.0`
     - `bump:patch` → `v1.2.4`
   - If multiple labels are set, priority is major > minor > patch.
-  - If no labels, next tag = unknown; reflect in PR body and outputs.
+  - If no labels, treat “next tag” as unknown. Adapt title/body and note generation accordingly.
 - Getting the current tag:
   - Use GitHub REST (`list tags` / `list matching refs`), parse `v` + SemVer, and pick the latest.
 
 ## Release Notes Generation
 - API: `POST /repos/{owner}/{repo}/releases/generate-notes`.
-- `tag_name` is required. When next tag is unknown, pass a provisional tag (e.g., `v0.0.0-next` or `next`).
-  - The API generates notes based on differences from the previous tag, etc.
-- `target_commitish` should be the default branch head (e.g., `main`).
-- For long output, place it under a separator or collapsible section in the body template.
+- When next tag is known, pass it as `tag_name`.
+- When unknown, treat it as unknown:
+  - Prefer not to assert a concrete next tag in the PR title/body.
+  - For the API, either pass a provisional name (e.g., `<prefix>next`) if required by the endpoint, or omit where supported.
+- Set `target_commitish` to the default branch head (e.g., `main`).
+- Include a “Full Changelog” compare link in the PR body (see template), e.g., `{repo}/compare/{current_tag}...{base_branch}` when `current_tag` exists.
 
-## Handling Existing Release PRs
-- Default to auto-merge existing release PRs (`auto-merge-existing: true`).
-- Merge method: `merge` by default, configurable to `squash` or `rebase`.
-- If merge is blocked (required checks, permissions, etc.):
-  - Do not fail the job; just update the PR body/labels and exit.
-- After merge, a push to `main` happens and another action like `action-bumpr` performs the actual bump/tag.
+## Updating Existing Release PRs
+- Never auto-merge. Users explicitly merge the release PR when they want to release.
+- On each trigger, recompute next tag and notes, and update title/body accordingly.
+- After user merges the release PR, this action ignores the resulting push to avoid recursion and will prepare the next cycle on subsequent changes.
 
 ## Outputs
 - `pr_number`: Number of the created/found release PR (empty if none).
@@ -73,24 +78,17 @@
 - `current_tag`: Latest parsed tag (empty if none).
 - `next_tag`: When determinable; empty if unknown.
 - `has_existing_pr`: Whether an existing release PR was found.
-- `merged_existing_pr`: Whether the auto-merge attempt succeeded.
+- `updated_existing_pr`: Whether an existing PR’s title/body was updated.
 - `release_notes_generated`: true/false.
 
-## Inputs (proposed)
+## Inputs (minimal v1)
 - `base-branch`: Default `main`.
-- `release-branch`: Default `release/pr`. Supports templating (e.g., `release/${date}`).
-- `title-template`: e.g., `release: {{ next_tag | default:"next" }}`.
-- `body-prefix`: Arbitrary text to prepend to the PR body.
+- `release-branch`: Default `release/pr` (stable name; no templating in v1).
 - `label-major`: Default `bump:major`.
 - `label-minor`: Default `bump:minor`.
 - `label-patch`: Default `bump:patch`.
 - `tag-prefix`: Default `v`.
-- `auto-merge-existing`: Default `true`.
-- `draft`: Whether to open the PR as draft. Default `false`.
-- `merge-method`: `merge|squash|rebase`. Default `merge`.
-- `extra-labels`: Comma-separated list of additional labels to add on creation.
-- `dry-run`: Log-only mode without mutating operations.
-- `github-token`: Defaults to `GITHUB_TOKEN`; support PAT if needed.
+- `github-token`: Defaults to `GITHUB_TOKEN`.
 
 ## Permissions
 - `contents: write` (read commit/tag info and create branches)
@@ -98,11 +96,9 @@
 - `issues: write` (apply labels)
 
 ## Implementation Details (Key API Steps)
-1) Read context: `owner`, `repo`, `base-branch (main)`, `head-sha`.
-2) Recursion guard: `GET /repos/{owner}/{repo}/commits/{sha}/pulls`.
-   - Identify own release PR by title prefix, `release-pr` label, or head branch name → no-op.
+1) Read context: `owner`, `repo`, `base-branch (main)`, `head-sha`, event type.
+2) Recursion guard: detect own release PR by head branch name only (e.g., `release/pr`). If the push was from merging it, no-op.
 3) Find existing PR: `GET /repos/{owner}/{repo}/pulls?state=open&head={owner}:{release-branch}&base={base-branch}`.
-   - If found and `auto-merge-existing=true`, try `PUT /repos/{owner}/{repo}/pulls/{pr_number}/merge`.
 4) Determine current tag: `GET /repos/{owner}/{repo}/tags`, parse `v` + SemVer, choose latest.
 5) Compute next tag: from labels on the existing PR or labels to be applied on creation.
    - If none, next tag remains unknown.
@@ -112,7 +108,7 @@
    - Empty commit: reuse base tree with `POST /repos/{owner}/{repo}/git/trees` → `POST /repos/{owner}/{repo}/git/commits` → update ref with `PATCH /repos/{owner}/{repo}/git/refs/heads/{release-branch}`.
 8) Create/update PR:
    - Existing: regenerate title/body and `PATCH /repos/{owner}/{repo}/pulls/{pr_number}`.
-   - New: `POST /repos/{owner}/{repo}/pulls`; add labels via `POST /issues/{pr_number}/labels`.
+   - New: `POST /repos/{owner}/{repo}/pulls`; add bump labels if desired.
 9) Set outputs: PR number/URL/branch, current/next tag, flags.
 
 ## Example Body Template
@@ -126,6 +122,8 @@ Release prepared by create-release-pr
 ---
 
 {{ generated_release_notes }}
+
+Full Changelog: https://github.com/{{ owner }}/{{ repo }}/compare/{{ current_tag }}...{{ base_branch }}
 ```
 
 ## Edge Cases & Considerations
