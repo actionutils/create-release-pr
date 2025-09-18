@@ -535,17 +535,23 @@ function buildPRText({
 
 	// Current tag with link to release page
 	if (currentTag) {
-		parts.push(`| **Current Release** | [${currentTag}](https://github.com/${owner}/${repo}/releases/tag/${currentTag}) |`);
+		parts.push(
+			`| **Current Release** | [${currentTag}](https://github.com/${owner}/${repo}/releases/tag/${currentTag}) |`,
+		);
 	} else {
 		parts.push("| **Current Release** | (none) |");
 	}
 
 	// Next tag
-	parts.push(`| **Next Release** | ${nextTag || "⚠️ TBD - Add label: `bump:major`, `bump:minor`, or `bump:patch`"} |`);
+	parts.push(
+		`| **Next Release** | ${nextTag || "⚠️ TBD - Add label: `bump:major`, `bump:minor`, or `bump:patch`"} |`,
+	);
 
 	// Full changelog link
 	if (currentTag) {
-		parts.push(`| **Changes** | [View Diff](https://github.com/${owner}/${repo}/compare/${currentTag}...${baseBranch}) |`);
+		parts.push(
+			`| **Changes** | [View Diff](https://github.com/${owner}/${repo}/compare/${currentTag}...${baseBranch}) |`,
+		);
 	}
 
 	parts.push("");
@@ -553,8 +559,12 @@ function buildPRText({
 	parts.push("");
 	parts.push("### 📝 Release Notes Preview");
 	parts.push("");
-	parts.push("> **Note:** This is a preview of the release notes that will be published when this PR is merged.");
-	parts.push("> Links in the changelog may not work until the release is created.");
+	parts.push(
+		"> **Note:** This is a preview of the release notes that will be published when this PR is merged.",
+	);
+	parts.push(
+		"> Links in the changelog may not work until the release is created.",
+	);
 	parts.push("");
 	parts.push("---");
 	parts.push("");
