@@ -1,0 +1,55 @@
+name: Create Release PR
+description: Create or update a release PR that, once merged by a user, triggers external tagging/release automation.
+author: actionutils
+inputs:
+  base-branch:
+    description: Base branch to release from
+    required: false
+    default: main
+  release-branch:
+    description: Stable branch name for the release PR head
+    required: false
+    default: release/pr
+  label-major:
+    description: Label that indicates a major bump
+    required: false
+    default: bump:major
+  label-minor:
+    description: Label that indicates a minor bump
+    required: false
+    default: bump:minor
+  label-patch:
+    description: Label that indicates a patch bump
+    required: false
+    default: bump:patch
+  tag-prefix:
+    description: Prefix for tags (e.g., v)
+    required: false
+    default: v
+  configuration_file_path:
+    description: Optional path to release notes configuration (e.g., .github/release.yml)
+    required: false
+  github-token:
+    description: GitHub token
+    required: true
+    default: ${{ github.token }}
+runs:
+  using: node20
+  main: index.js
+outputs:
+  state:
+    description: release_required | pr_changed | noop
+  pr_number:
+    description: Release PR number when state=pr_changed
+  pr_url:
+    description: Release PR URL when state=pr_changed
+  pr_branch:
+    description: Release branch name when state=pr_changed
+  current_tag:
+    description: Latest parsed tag
+  next_tag:
+    description: Next tag when determinable
+  bump_level:
+    description: major | minor | patch | unknown
+  release_notes:
+    description: Generated release notes text
