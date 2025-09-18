@@ -374,7 +374,12 @@ async function generateNotes(
 		target,
 		previousTagName,
 		configuration_file_path,
-	}: { tagName: string; target: string; previousTagName?: string; configuration_file_path?: string },
+	}: {
+		tagName: string;
+		target: string;
+		previousTagName?: string;
+		configuration_file_path?: string;
+	},
 ): Promise<string> {
 	const res = await octokit.rest.repos.generateReleaseNotes({
 		owner,
