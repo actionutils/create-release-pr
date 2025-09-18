@@ -5,7 +5,7 @@
     "module": "commonjs",
     "outDir": "dist",
     "moduleResolution": "node",
-    "lib": ["ES2022", "DOM"],
+    "lib": ["ES2022"],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
