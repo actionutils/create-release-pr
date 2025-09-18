@@ -26080,7 +26080,6 @@ function run() {
         }
     });
 }
-// no helper: use core.setOutput directly where needed
 function makeClient(token) {
     const base = 'https://api.github.com';
     function request(method, path, body) {

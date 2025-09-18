@@ -146,9 +146,6 @@ async function run(): Promise<void> {
     process.exit(1);
   }
 }
-
-// no helper: use core.setOutput directly where needed
-
 function makeClient(token: string): GhClient {
   const base = 'https://api.github.com';
   async function request<T>(method: string, path: string, body?: any): Promise<T> {
