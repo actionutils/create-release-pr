@@ -254,7 +254,13 @@ async function run(): Promise<void> {
 			});
 			core.info(`Created release PR #${created.number}`);
 			// Add release-pr label to the created PR
-			await ensureAndAddLabel(octokit, owner, repo, created.number, "release-pr");
+			await ensureAndAddLabel(
+				octokit,
+				owner,
+				repo,
+				created.number,
+				"release-pr",
+			);
 			setOutputWithLog("state", "pr_changed");
 			setOutputWithLog("pr_number", String(created.number));
 			setOutputWithLog("pr_url", created.html_url);
