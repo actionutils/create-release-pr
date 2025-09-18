@@ -85,6 +85,7 @@ async function run(): Promise<void> {
 			const notes = await generateNotes(octokit, owner, repo, {
 				tagName: nextTag || `${tagPrefix}next`,
 				target: baseBranch,
+				previousTagName: currentTag || undefined,
 				configuration_file_path: releaseCfgPath,
 			}).catch(() => "");
 			const { title, body } = buildPRText({
@@ -191,6 +192,7 @@ async function run(): Promise<void> {
 				const notes = await generateNotes(octokit, owner, repo, {
 					tagName: nextTag || `${tagPrefix}next`,
 					target: baseBranch,
+					previousTagName: currentTag || undefined,
 					configuration_file_path: releaseCfgPath,
 				}).catch(() => "");
 				const { title, body } = buildPRText({
@@ -232,6 +234,7 @@ async function run(): Promise<void> {
 			const notes = await generateNotes(octokit, owner, repo, {
 				tagName: `${tagPrefix}next`,
 				target: baseBranch,
+				previousTagName: currentTag || undefined,
 				configuration_file_path: releaseCfgPath,
 			}).catch(() => "");
 			const { title, body } = buildPRText({
@@ -369,14 +372,16 @@ async function generateNotes(
 	{
 		tagName,
 		target,
+		previousTagName,
 		configuration_file_path,
-	}: { tagName: string; target: string; configuration_file_path?: string },
+	}: { tagName: string; target: string; previousTagName?: string; configuration_file_path?: string },
 ): Promise<string> {
 	const res = await octokit.rest.repos.generateReleaseNotes({
 		owner,
 		repo,
 		tag_name: tagName,
 		target_commitish: target,
+		previous_tag_name: previousTagName,
 		configuration_file_path,
 	});
 	return res.data.body || "";

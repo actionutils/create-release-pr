@@ -30038,6 +30038,7 @@ function run() {
                 const notes = yield generateNotes(octokit, owner, repo, {
                     tagName: nextTag || `${tagPrefix}next`,
                     target: baseBranch,
+                    previousTagName: currentTag || undefined,
                     configuration_file_path: releaseCfgPath,
                 }).catch(() => "");
                 const { title, body } = buildPRText({
@@ -30132,6 +30133,7 @@ function run() {
                     const notes = yield generateNotes(octokit, owner, repo, {
                         tagName: nextTag || `${tagPrefix}next`,
                         target: baseBranch,
+                        previousTagName: currentTag || undefined,
                         configuration_file_path: releaseCfgPath,
                     }).catch(() => "");
                     const { title, body } = buildPRText({
@@ -30172,6 +30174,7 @@ function run() {
                 const notes = yield generateNotes(octokit, owner, repo, {
                     tagName: `${tagPrefix}next`,
                     target: baseBranch,
+                    previousTagName: currentTag || undefined,
                     configuration_file_path: releaseCfgPath,
                 }).catch(() => "");
                 const { title, body } = buildPRText({
@@ -30280,12 +30283,13 @@ function calcNext(prefix, currentTag, bumpLevel) {
     return `${prefix}${major}.${minor}.${patch}`;
 }
 function generateNotes(octokit_1, owner_1, repo_1, _a) {
-    return __awaiter(this, arguments, void 0, function* (octokit, owner, repo, { tagName, target, configuration_file_path, }) {
+    return __awaiter(this, arguments, void 0, function* (octokit, owner, repo, { tagName, target, previousTagName, configuration_file_path, }) {
         const res = yield octokit.rest.repos.generateReleaseNotes({
             owner,
             repo,
             tag_name: tagName,
             target_commitish: target,
+            previous_tag_name: previousTagName,
             configuration_file_path,
         });
         return res.data.body || "";
