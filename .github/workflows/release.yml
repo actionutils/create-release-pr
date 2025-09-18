@@ -17,7 +17,7 @@ jobs:
       issues: write
     runs-on: ubuntu-latest
     outputs:
-      release_required: ${{ steps.release-pr.outputs.state == 'release_required'}}
+      state: ${{ steps.release-pr.outputs.state }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -27,7 +27,7 @@ jobs:
 
   verify-releaser:
     needs: [release-pr]
-    if: needs.release-pr.outputs.release_required
+    if: needs.release-pr.outputs.state == 'release_required'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -43,7 +43,7 @@ jobs:
 
   release:
     needs: [verify-releaser, release-pr]
-    if: needs.release-pr.outputs.release_required
+    if: needs.release-pr.outputs.state == 'release_required'
     concurrency:
       group: "release"
       cancel-in-progress: false
