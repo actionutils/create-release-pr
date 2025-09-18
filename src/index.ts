@@ -524,17 +524,31 @@ function buildPRText({
 	const parts: string[] = [];
 	parts.push("Release prepared by create-release-pr");
 	parts.push("");
-	parts.push(`- Current Tag: ${currentTag || "(none)"}`);
-	parts.push(`- Next Tag: ${nextTag || "(TBD: set bump:major/minor/patch)"}`);
-	parts.push(`- Target: ${baseBranch}`);
+
+	// Build the release info table
+	parts.push("| | |");
+	parts.push("|---|---|");
+
+	// Current tag with link to release page
+	if (currentTag) {
+		parts.push(`| **Current Release** | [${currentTag}](https://github.com/${owner}/${repo}/releases/tag/${currentTag}) |`);
+	} else {
+		parts.push("| **Current Release** | (none) |");
+	}
+
+	// Next tag
+	parts.push(`| **Next Release** | ${nextTag || "(TBD: set bump:major/minor/patch)"} |`);
+
+	// Full changelog link
+	if (currentTag) {
+		parts.push(`| **Changes** | [Full Changelog](https://github.com/${owner}/${repo}/compare/${currentTag}...${baseBranch}) |`);
+	}
+
 	parts.push("");
 	parts.push("---");
 	parts.push("");
 	if (notes) parts.push(notes);
-	if (currentTag)
-		parts.push(
-			`\nFull Changelog: https://github.com/${owner}/${repo}/compare/${currentTag}...${baseBranch}`,
-		);
+
 	return { title, body: parts.join("\n") };
 }
 
