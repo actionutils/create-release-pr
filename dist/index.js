@@ -32884,6 +32884,7 @@ function ensureAndAddLabel(octokit, owner, repo, prNumber, labelName) {
 function buildPRText({ owner, repo, baseBranch, releaseBranch, currentTag, nextTag, notes, }) {
     const known = !!nextTag;
     const title = known ? `Release for ${nextTag}` : "Release for new version";
+    const serverUrl = process.env.GITHUB_SERVER_URL || "https://github.com";
     const parts = [];
     // Build the release info table
     parts.push("<details><summary>Release Information</summary>");
@@ -32892,7 +32893,7 @@ function buildPRText({ owner, repo, baseBranch, releaseBranch, currentTag, nextT
     parts.push("|---|---|");
     // Current tag with link to release page
     if (currentTag) {
-        parts.push(`| **Current Release** | [${currentTag}](https://github.com/${owner}/${repo}/releases/tag/${currentTag}) |`);
+        parts.push(`| **Current Release** | [${currentTag}](${serverUrl}/${owner}/${repo}/releases/tag/${currentTag}) |`);
     }
     else {
         parts.push("| **Current Release** | (none) |");
@@ -32900,9 +32901,11 @@ function buildPRText({ owner, repo, baseBranch, releaseBranch, currentTag, nextT
     const nextTagOrTBD = nextTag || "TBD - Add label: `bump:major`, `bump:minor`, or `bump:patch`";
     // Next tag
     parts.push(`| **Next Release** | ${nextTagOrTBD} |`);
+    // Release branch
+    parts.push(`| **Release Branch** | [${releaseBranch}](${serverUrl}/${owner}/${repo}/tree/${releaseBranch}) |`);
     // Full changelog link
     if (currentTag) {
-        parts.push(`| **Changes** | [View Diff](https://github.com/${owner}/${repo}/compare/${currentTag}...${baseBranch}) |`);
+        parts.push(`| **Changes** | [View Diff](${serverUrl}/${owner}/${repo}/compare/${currentTag}...${baseBranch}) |`);
     }
     parts.push("");
     parts.push("</details>");
@@ -32917,8 +32920,8 @@ function buildPRText({ owner, repo, baseBranch, releaseBranch, currentTag, nextT
         // Replace the Full Changelog link with a working View Diff link
         let modifiedNotes = notes;
         if (currentTag && nextTag) {
-            const fullChangelogPattern = /\*\*Full Changelog\*\*: https:\/\/github\.com\/[^\/]+\/[^\/]+\/compare\/[^\.]+\.\.\.[^\s]+/g;
-            const viewDiffLink = `**Full Changelog**: https://github.com/${owner}/${repo}/compare/${currentTag}...${baseBranch}`;
+            const fullChangelogPattern = new RegExp(`\\*\\*Full Changelog\\*\\*: ${serverUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\/[^\\/]+\\/[^\\/]+\\/compare\\/[^\\.]+\\.\\.\\.[^\\s]+`, 'g');
+            const viewDiffLink = `**Full Changelog**: ${serverUrl}/${owner}/${repo}/compare/${currentTag}...${baseBranch}`;
             modifiedNotes = notes.replace(fullChangelogPattern, viewDiffLink);
         }
         parts.push(modifiedNotes);
@@ -32932,9 +32935,9 @@ function buildPRText({ owner, repo, baseBranch, releaseBranch, currentTag, nextT
     const runId = process.env.GITHUB_RUN_ID;
     const updateTime = new Date().toISOString();
     if (runId) {
-        const workflowUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}`;
+        const workflowUrl = `${serverUrl}/${owner}/${repo}/actions/runs/${runId}`;
         parts.push("");
-        parts.push(`<div align="right"><sub>Last updated: <a href="${workflowUrl}">${updateTime}</a> by <a href='https://github.com/actionutils/create-release-pr'>create-release-pr</a></sub></div>`);
+        parts.push(`<div align="right"><sub>Last updated: <a href="${workflowUrl}">${updateTime}</a> by <a href='${serverUrl}/actionutils/create-release-pr'>create-release-pr</a></sub></div>`);
     }
     return { title, body: parts.join("\n") };
 }
