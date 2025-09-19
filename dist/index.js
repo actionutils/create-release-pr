@@ -32881,12 +32881,14 @@ function ensureAndAddLabel(octokit, owner, repo, prNumber, labelName) {
         }
     });
 }
-function buildPRText({ owner, repo, baseBranch, currentTag, nextTag, notes, }) {
+function buildPRText({ owner, repo, baseBranch, releaseBranch, currentTag, nextTag, notes, }) {
     const known = !!nextTag;
     const title = known ? `Release for ${nextTag}` : "Release for new version";
     const serverUrl = process.env.GITHUB_SERVER_URL || "https://github.com";
     const parts = [];
     const nextTagOrTBD = nextTag || "TBD - Add label: `bump:major`, `bump:minor`, or `bump:patch`";
+    parts.push(`You can directly edit the [${releaseBranch}](${serverUrl}/${owner}/${repo}/tree/${releaseBranch}) branch to prepare for the release.`);
+    parts.push("");
     parts.push("### ↓ Release Notes Preview ↓");
     parts.push("");
     if (notes) {
@@ -32969,6 +32971,7 @@ function updateReleasePR(octokit, config, pr) {
             owner: config.owner,
             repo: config.repo,
             baseBranch: config.baseBranch,
+            releaseBranch: config.releaseBranch,
             currentTag: ((_a = releaseInfo.currentTag) === null || _a === void 0 ? void 0 : _a.raw) || null,
             nextTag: releaseInfo.nextTag,
             notes: releaseInfo.notes,
@@ -33074,6 +33077,7 @@ function updateExistingReleasePR(octokit, config, existing) {
             owner: config.owner,
             repo: config.repo,
             baseBranch: config.baseBranch,
+            releaseBranch: config.releaseBranch,
             currentTag: ((_a = releaseInfo.currentTag) === null || _a === void 0 ? void 0 : _a.raw) || null,
             nextTag: releaseInfo.nextTag,
             notes: releaseInfo.notes,
@@ -33118,6 +33122,7 @@ function createNewReleasePR(octokit, config, currentTag) {
             owner: config.owner,
             repo: config.repo,
             baseBranch: config.baseBranch,
+            releaseBranch: config.releaseBranch,
             currentTag: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || null,
             nextTag,
             notes,
