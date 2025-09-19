@@ -318,15 +318,8 @@ function buildPRText({
 	const known = !!nextTag;
 	const title = known ? `Release for ${nextTag}` : "Release for new version";
 	const parts: string[] = [];
-	parts.push("## 🚀 Release PR");
-	parts.push("");
-	parts.push(
-		"_Prepared by [create-release-pr](https://github.com/actionutils/create-release-pr)_",
-	);
-	parts.push("");
-
 	// Build the release info table
-	parts.push("### Release Information");
+	parts.push("<details><summary>Release Information</summary>");
 	parts.push("");
 	parts.push("| | |");
 	parts.push("|---|---|");
@@ -340,9 +333,11 @@ function buildPRText({
 		parts.push("| **Current Release** | (none) |");
 	}
 
+  const nextTagOrTBD = nextTag || "⚠️ TBD - Add label: `bump:major`, `bump:minor`, or `bump:patch`";
+
 	// Next tag
 	parts.push(
-		`| **Next Release** | ${nextTag || "⚠️ TBD - Add label: `bump:major`, `bump:minor`, or `bump:patch`"} |`,
+		`| **Next Release** | ${nextTagOrTBD} |`,
 	);
 
 	// Full changelog link
@@ -351,22 +346,24 @@ function buildPRText({
 			`| **Changes** | [View Diff](https://github.com/${owner}/${repo}/compare/${currentTag}...${baseBranch}) |`,
 		);
 	}
+	parts.push("");
+	parts.push("</details>");
 
 	parts.push("");
 	parts.push("---");
 	parts.push("");
-	parts.push("### 📝 Release Notes Preview");
+	parts.push("### ↓ Release Notes Preview ↓");
 	parts.push("");
 	parts.push(
-		"> **Note:** This is a preview of the release notes that will be published when this PR is merged.",
+		"> [!NOTE] This is a preview of the release notes that will be published when this PR is merged.",
 	);
 	parts.push(
 		"> The Full Changelog link may not work until the new tag is released.",
 	);
 	parts.push("");
-	parts.push("---");
-	parts.push("");
 	if (notes) {
+    parts.push(`# Release ${nextTagOrTBD}`);
+    parts.push("");
 		parts.push(notes);
 	} else {
 		parts.push("_Release notes will be generated here_");
@@ -376,15 +373,13 @@ function buildPRText({
 
 	// Add workflow update metadata at the end, right-aligned
 	const runId = process.env.GITHUB_RUN_ID;
-	const runNumber = process.env.GITHUB_RUN_NUMBER;
-	const workflow = process.env.GITHUB_WORKFLOW;
 	const updateTime = new Date().toISOString();
 
 	if (runId && workflow) {
 		const workflowUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}`;
-		parts.push("");
+    parts.push("");
 		parts.push(
-			`<div align="right"><sub>Last updated: <a href="${workflowUrl}">${updateTime}</a> by ${workflow} #${runNumber || runId}</sub></div>`,
+			`<div align="right"><sub>Last updated: <a href="${workflowUrl}">${updateTime}</a> by <a href='https://github.com/actionutils/create-release-pr'>create-release-pr</a></sub></div>`,
 		);
 	}
 
