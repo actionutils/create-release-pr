@@ -32953,12 +32953,34 @@ function handlePullRequestEvent(octokit, config) {
             setOutputWithLog("state", "noop");
             return;
         }
-        if (pr.head.ref !== config.releaseBranch) {
-            core.info(`PR is not from release branch (${pr.head.ref} != ${config.releaseBranch}) - skipping`);
-            setOutputWithLog("state", "noop");
+        // Check if this is the release PR itself
+        if (pr.head.ref === config.releaseBranch) {
+            core.info("Label change on release PR - updating");
+            yield updateReleasePR(octokit, config, pr);
             return;
         }
-        yield updateReleasePR(octokit, config, pr);
+        // For closed PRs, we need to update the release PR to regenerate release notes
+        if (pr.state === "closed" && pr.merged) {
+            core.info("Label change on closed/merged PR - updating release PR notes");
+            // Find the open release PR to update
+            const releasePR = yield findOpenReleasePR(octokit, {
+                owner: config.owner,
+                repo: config.repo,
+                baseBranch: config.baseBranch,
+                releaseBranch: config.releaseBranch,
+            });
+            if (releasePR && releasePR.number) {
+                core.info(`Found release PR #${releasePR.number} - updating with new release notes`);
+                yield updateReleasePR(octokit, config, releasePR);
+            }
+            else {
+                core.info("No open release PR found - skipping");
+                setOutputWithLog("state", "noop");
+            }
+            return;
+        }
+        core.info("Label change on non-release, non-merged PR - skipping");
+        setOutputWithLog("state", "noop");
     });
 }
 function updateReleasePR(octokit, config, pr) {
