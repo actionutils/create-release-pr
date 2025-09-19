@@ -569,8 +569,8 @@ async function handleMergedReleasePR(
 	if (nextTag) core.info(`Release required for: ${nextTag}`);
 
 	setReleaseOutputs("release_required", {
-		prNumber: "",
-		prUrl: "",
+		prNumber: String(relPR.number),
+		prUrl: relPR.html_url || "",
 		prBranch: "",
 		currentTag: currentTag?.raw || null,
 		nextTag,

@@ -33070,8 +33070,8 @@ function handleMergedReleasePR(octokit, config, relPR) {
         if (nextTag)
             core.info(`Release required for: ${nextTag}`);
         setReleaseOutputs("release_required", {
-            prNumber: "",
-            prUrl: "",
+            prNumber: String(relPR.number),
+            prUrl: relPR.html_url || "",
             prBranch: "",
             currentTag: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || null,
             nextTag,

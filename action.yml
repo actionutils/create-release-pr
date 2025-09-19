@@ -40,9 +40,9 @@ outputs:
   state:
     description: release_required | pr_changed | noop
   pr_number:
-    description: Release PR number when state=pr_changed
+    description: Release PR number when state=release_required or state=pr_changed
   pr_url:
-    description: Release PR URL when state=pr_changed
+    description: Release PR URL when state=release_required or state=pr_changed
   pr_branch:
     description: Release branch name when state=pr_changed
   current_tag:
