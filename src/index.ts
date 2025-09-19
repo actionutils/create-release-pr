@@ -562,15 +562,20 @@ async function handleMergedReleasePR(
 	});
 	core.info(`Detected bump level: ${bumpLevel}`);
 
-	const nextTag =
-		bumpLevel === "unknown"
-			? ""
-			: calcNext(config.tagPrefix, currentTag, bumpLevel);
-	if (nextTag) core.info(`Release required for: ${nextTag}`);
+	// Error if no bump level is specified
+	if (bumpLevel === "unknown") {
+		throw new Error(
+			`Release PR #${relPR.number} was merged without a bump label. ` +
+				`Please add one of the following labels: ${config.labelMajor}, ${config.labelMinor}, or ${config.labelPatch}`,
+		);
+	}
+
+	const nextTag = calcNext(config.tagPrefix, currentTag, bumpLevel);
+	core.info(`Release required for: ${nextTag}`);
 
 	// Generate release notes for the merged PR
 	const notes = await generateNotes(octokit, config.owner, config.repo, {
-		tagName: nextTag || config.baseBranch,
+		tagName: nextTag,
 		target: config.baseBranch,
 		previousTagName: currentTag?.raw || undefined,
 		configuration_file_path: config.releaseCfgPath,
