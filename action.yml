@@ -40,11 +40,11 @@ outputs:
   state:
     description: release_required | pr_changed | noop
   pr_number:
-    description: Release PR number when state=release_required or state=pr_changed
+    description: Release PR number
   pr_url:
-    description: Release PR URL when state=release_required or state=pr_changed
+    description: Release PR URL
   pr_branch:
-    description: Release branch name when state=pr_changed
+    description: Release branch name (only for pr_changed state)
   current_tag:
     description: Latest parsed tag
   next_tag:
@@ -52,4 +52,4 @@ outputs:
   bump_level:
     description: major | minor | patch | unknown
   release_notes:
-    description: Generated release notes text when state=release_required or state=pr_changed
+    description: Generated release notes text
