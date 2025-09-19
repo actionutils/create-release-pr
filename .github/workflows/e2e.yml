@@ -306,11 +306,12 @@ jobs:
           echo "Waiting for release workflow after merge..."
           sleep 30
 
-          # Get the latest workflow run for the Release workflow on the test base branch after merge
+          # Get the latest workflow run for the Release workflow on main branch after merge
+          # The release PR merges to main, so the workflow runs on main branch
           LATEST_RUN_ID=$(gh run list \
             --repo actionutils/test-create-release-pr \
             --workflow=release.yml \
-            --branch="$TEST_BASE_BRANCH" \
+            --branch="main" \
             --limit=1 \
             --json=databaseId \
             --jq='.[0].databaseId')
@@ -325,7 +326,7 @@ jobs:
 
             echo "✅ Release workflow completed after merge!"
           else
-            echo "⚠️ No release workflow run found for branch $TEST_BASE_BRANCH after merge"
+            echo "⚠️ No release workflow run found on main branch after merge"
           fi
 
       - name: Revert base branch changes
