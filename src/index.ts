@@ -575,7 +575,9 @@ async function handleMergedReleasePR(
 		previousTagName: currentTag?.raw || undefined,
 		configuration_file_path: config.releaseCfgPath,
 	}).catch((err) => {
-		core.warning(`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`);
+		core.warning(
+			`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`,
+		);
 		return "";
 	});
 
@@ -659,7 +661,9 @@ async function createNewReleasePR(
 		previousTagName: currentTag?.raw || undefined,
 		configuration_file_path: config.releaseCfgPath,
 	}).catch((err) => {
-		core.warning(`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`);
+		core.warning(
+			`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`,
+		);
 		return "";
 	});
 
@@ -736,7 +740,9 @@ async function getReleaseInfo(
 		previousTagName: currentTag?.raw || undefined,
 		configuration_file_path: config.releaseCfgPath,
 	}).catch((err) => {
-		core.warning(`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`);
+		core.warning(
+			`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`,
+		);
 		return "";
 	});
 
