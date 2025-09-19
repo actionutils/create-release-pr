@@ -33069,14 +33069,24 @@ function handleMergedReleasePR(octokit, config, relPR) {
             : calcNext(config.tagPrefix, currentTag, bumpLevel);
         if (nextTag)
             core.info(`Release required for: ${nextTag}`);
+        // Generate release notes for the merged PR
+        const notes = yield generateNotes(octokit, config.owner, config.repo, {
+            tagName: nextTag || config.baseBranch,
+            target: config.baseBranch,
+            previousTagName: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || undefined,
+            configuration_file_path: config.releaseCfgPath,
+        }).catch((err) => {
+            core.warning(`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`);
+            return "";
+        });
         setReleaseOutputs("release_required", {
-            prNumber: "",
-            prUrl: "",
+            prNumber: String(relPR.number),
+            prUrl: relPR.html_url || "",
             prBranch: "",
             currentTag: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || null,
             nextTag,
             bumpLevel,
-            notes: "",
+            notes,
         });
     });
 }
@@ -33132,7 +33142,10 @@ function createNewReleasePR(octokit, config, currentTag) {
             target: config.baseBranch,
             previousTagName: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || undefined,
             configuration_file_path: config.releaseCfgPath,
-        }).catch(() => "");
+        }).catch((err) => {
+            core.warning(`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`);
+            return "";
+        });
         const { title, body } = buildPRText({
             owner: config.owner,
             repo: config.repo,
@@ -33188,7 +33201,10 @@ function getReleaseInfo(octokit, config, labels) {
             target: config.baseBranch,
             previousTagName: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || undefined,
             configuration_file_path: config.releaseCfgPath,
-        }).catch(() => "");
+        }).catch((err) => {
+            core.warning(`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`);
+            return "";
+        });
         return { currentTag, nextTag, bumpLevel, notes };
     });
 }
