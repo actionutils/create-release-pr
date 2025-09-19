@@ -8,7 +8,7 @@ changelog:
     - title: Breaking Changes 🛠
       labels:
         - breaking-change
-    - title: Deprecations ⚠️ 
+    - title: Deprecations ⚠️
       labels:
         - breaking-change
     - title: Enhancements 🎉

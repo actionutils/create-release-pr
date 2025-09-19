@@ -304,6 +304,10 @@ function buildPRText({
 	owner,
 	repo,
 	baseBranch,
+	releaseBranch,
+	labelMajor,
+	labelMinor,
+	labelPatch,
 	currentTag,
 	nextTag,
 	notes,
@@ -311,80 +315,73 @@ function buildPRText({
 	owner: string;
 	repo: string;
 	baseBranch: string;
+	releaseBranch: string;
+	labelMajor: string;
+	labelMinor: string;
+	labelPatch: string;
 	currentTag: string | null;
 	nextTag: string;
 	notes: string;
 }) {
 	const known = !!nextTag;
 	const title = known ? `Release for ${nextTag}` : "Release for new version";
+	const serverUrl = process.env.GITHUB_SERVER_URL || "https://github.com";
 	const parts: string[] = [];
-	parts.push("## 🚀 Release PR");
-	parts.push("");
+
+	const nextTagOrTBD =
+		nextTag || "TBD - Add label: `bump:major`, `bump:minor`, or `bump:patch`";
+
 	parts.push(
-		"_Prepared by [create-release-pr](https://github.com/actionutils/create-release-pr)_",
+		`You can directly edit the [${releaseBranch}](${serverUrl}/${owner}/${repo}/tree/${releaseBranch}) branch to prepare for the release.`,
 	);
 	parts.push("");
-
-	// Build the release info table
-	parts.push("### Release Information");
-	parts.push("");
-	parts.push("| | |");
-	parts.push("|---|---|");
-
-	// Current tag with link to release page
-	if (currentTag) {
-		parts.push(
-			`| **Current Release** | [${currentTag}](https://github.com/${owner}/${repo}/releases/tag/${currentTag}) |`,
-		);
-	} else {
-		parts.push("| **Current Release** | (none) |");
-	}
-
-	// Next tag
-	parts.push(
-		`| **Next Release** | ${nextTag || "⚠️ TBD - Add label: `bump:major`, `bump:minor`, or `bump:patch`"} |`,
-	);
-
-	// Full changelog link
-	if (currentTag) {
-		parts.push(
-			`| **Changes** | [View Diff](https://github.com/${owner}/${repo}/compare/${currentTag}...${baseBranch}) |`,
-		);
-	}
-
-	parts.push("");
-	parts.push("---");
-	parts.push("");
-	parts.push("### 📝 Release Notes Preview");
+	parts.push("<details>");
+	parts.push("<summary>How to specify the next version</summary>");
 	parts.push("");
 	parts.push(
-		"> **Note:** This is a preview of the release notes that will be published when this PR is merged.",
+		"Add one of the following labels to this PR to specify the version bump:",
 	);
 	parts.push(
-		"> The Full Changelog link may not work until the new tag is released.",
+		`- \`${labelMajor}\` - for major version bump (e.g., 1.0.0 → 2.0.0)`,
+	);
+	parts.push(
+		`- \`${labelMinor}\` - for minor version bump (e.g., 1.0.0 → 1.1.0)`,
+	);
+	parts.push(
+		`- \`${labelPatch}\` - for patch version bump (e.g., 1.0.0 → 1.0.1)`,
 	);
 	parts.push("");
-	parts.push("---");
+	parts.push("</details>");
+	parts.push("");
+	parts.push("### ↓ Release Notes Preview ↓");
 	parts.push("");
 	if (notes) {
-		parts.push(notes);
+		parts.push(`# Release ${nextTagOrTBD}`);
+		parts.push("");
+		// Replace the Full Changelog link with a working View Diff link
+		let modifiedNotes = notes;
+		if (currentTag && nextTag) {
+			const fullChangelogPattern = new RegExp(
+				`\\*\\*Full Changelog\\*\\*: ${serverUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/[^\\/]+\\/[^\\/]+\\/compare\\/[^\\.]+\\.\\.\\.[^\\s]+`,
+				"g",
+			);
+			const viewDiffLink = `**Full Changelog**: ${serverUrl}/${owner}/${repo}/compare/${currentTag}...${baseBranch}`;
+			modifiedNotes = notes.replace(fullChangelogPattern, viewDiffLink);
+		}
+		parts.push(modifiedNotes);
 	} else {
 		parts.push("_Release notes will be generated here_");
 	}
-	parts.push("");
-	parts.push("---");
 
 	// Add workflow update metadata at the end, right-aligned
 	const runId = process.env.GITHUB_RUN_ID;
-	const runNumber = process.env.GITHUB_RUN_NUMBER;
-	const workflow = process.env.GITHUB_WORKFLOW;
 	const updateTime = new Date().toISOString();
 
-	if (runId && workflow) {
-		const workflowUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}`;
+	if (runId) {
+		const workflowUrl = `${serverUrl}/${owner}/${repo}/actions/runs/${runId}`;
 		parts.push("");
 		parts.push(
-			`<div align="right"><sub>Last updated: <a href="${workflowUrl}">${updateTime}</a> by ${workflow} #${runNumber || runId}</sub></div>`,
+			`<div align="right"><sub>Last updated: <a href="${workflowUrl}">${updateTime}</a> by <a href='${serverUrl}/actionutils/create-release-pr'>create-release-pr</a></sub></div>`,
 		);
 	}
 
@@ -463,6 +460,10 @@ async function updateReleasePR(
 		owner: config.owner,
 		repo: config.repo,
 		baseBranch: config.baseBranch,
+		releaseBranch: config.releaseBranch,
+		labelMajor: config.labelMajor,
+		labelMinor: config.labelMinor,
+		labelPatch: config.labelPatch,
 		currentTag: releaseInfo.currentTag?.raw || null,
 		nextTag: releaseInfo.nextTag,
 		notes: releaseInfo.notes,
@@ -595,6 +596,10 @@ async function updateExistingReleasePR(
 		owner: config.owner,
 		repo: config.repo,
 		baseBranch: config.baseBranch,
+		releaseBranch: config.releaseBranch,
+		labelMajor: config.labelMajor,
+		labelMinor: config.labelMinor,
+		labelPatch: config.labelPatch,
 		currentTag: releaseInfo.currentTag?.raw || null,
 		nextTag: releaseInfo.nextTag,
 		notes: releaseInfo.notes,
@@ -648,6 +653,10 @@ async function createNewReleasePR(
 		owner: config.owner,
 		repo: config.repo,
 		baseBranch: config.baseBranch,
+		releaseBranch: config.releaseBranch,
+		labelMajor: config.labelMajor,
+		labelMinor: config.labelMinor,
+		labelPatch: config.labelPatch,
 		currentTag: currentTag?.raw || null,
 		nextTag,
 		notes,
