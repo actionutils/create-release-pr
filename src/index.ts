@@ -7,6 +7,7 @@ import {
 	PullRequestEvent as WebhookPullRequestEvent,
 	PushEvent,
 } from "@octokit/webhooks-definitions/schema";
+import * as semver from "semver";
 
 type BumpLevel = "major" | "minor" | "patch" | "unknown";
 
@@ -304,27 +305,14 @@ async function latestTag(
 	const semvers = (tags || [])
 		.map((t) => t.name)
 		.filter((n) => n && n.startsWith(prefix))
-		.map((n) => ({ name: n, v: parseSemVer(n.slice(prefix.length)) }))
-		.filter((x): x is { name: string; v: SemVer } => !!x.v)
-		.sort((a, b) => cmpSemVer(a.v, b.v));
+		.map((n) => ({ name: n, v: semver.parse(n.slice(prefix.length)) }))
+		.filter((x): x is { name: string; v: semver.SemVer } => !!x.v)
+		.sort((a, b) => semver.compare(a.v, b.v));
 	const latest = semvers.length ? semvers[semvers.length - 1].name : null;
 	core.debug(
 		`Found ${semvers.length} semver tags, latest: ${latest || "none"}`,
 	);
 	return latest;
-}
-
-type SemVer = { major: number; minor: number; patch: number };
-function parseSemVer(s: string): SemVer | null {
-	const m = s.match(/^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/);
-	if (!m) return null;
-	return { major: +m[1], minor: +m[2], patch: +m[3] };
-}
-
-function cmpSemVer(a: SemVer, b: SemVer): number {
-	if (a.major !== b.major) return a.major - b.major;
-	if (a.minor !== b.minor) return a.minor - b.minor;
-	return a.patch - b.patch;
 }
 
 function detectBump(
@@ -345,24 +333,34 @@ function calcNext(
 	currentTag: string | null,
 	bumpLevel: BumpLevel,
 ): string {
-	const cur =
-		currentTag && currentTag.startsWith(prefix)
-			? parseSemVer(currentTag.slice(prefix.length))
-			: { major: 0, minor: 0, patch: 0 };
-	if (!cur)
-		throw new Error(`Current tag is not SemVer with prefix: ${currentTag}`);
-	let { major, minor, patch } = cur;
-	if (bumpLevel === "major") {
-		major += 1;
-		minor = 0;
-		patch = 0;
-	} else if (bumpLevel === "minor") {
-		minor += 1;
-		patch = 0;
-	} else if (bumpLevel === "patch") {
-		patch += 1;
+	let cur: semver.SemVer | null = null;
+	if (currentTag && currentTag.startsWith(prefix)) {
+		cur = semver.parse(currentTag.slice(prefix.length));
 	}
-	return `${prefix}${major}.${minor}.${patch}`;
+	if (!cur) {
+		// If no current tag or invalid semver, start from 0.0.0
+		cur = semver.parse("0.0.0");
+	}
+	if (!cur) {
+		throw new Error(`Failed to parse version`);
+	}
+
+	let newVersion: string;
+	if (bumpLevel === "major") {
+		newVersion = semver.inc(cur, "major") || "";
+	} else if (bumpLevel === "minor") {
+		newVersion = semver.inc(cur, "minor") || "";
+	} else if (bumpLevel === "patch") {
+		newVersion = semver.inc(cur, "patch") || "";
+	} else {
+		return "";
+	}
+
+	if (!newVersion) {
+		throw new Error(`Failed to increment version`);
+	}
+
+	return `${prefix}${newVersion}`;
 }
 
 async function generateNotes(
