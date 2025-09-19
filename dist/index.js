@@ -33075,7 +33075,10 @@ function handleMergedReleasePR(octokit, config, relPR) {
             target: config.baseBranch,
             previousTagName: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || undefined,
             configuration_file_path: config.releaseCfgPath,
-        }).catch(() => "");
+        }).catch((err) => {
+            core.warning(`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`);
+            return "";
+        });
         setReleaseOutputs("release_required", {
             prNumber: String(relPR.number),
             prUrl: relPR.html_url || "",
@@ -33139,7 +33142,10 @@ function createNewReleasePR(octokit, config, currentTag) {
             target: config.baseBranch,
             previousTagName: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || undefined,
             configuration_file_path: config.releaseCfgPath,
-        }).catch(() => "");
+        }).catch((err) => {
+            core.warning(`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`);
+            return "";
+        });
         const { title, body } = buildPRText({
             owner: config.owner,
             repo: config.repo,
@@ -33195,7 +33201,10 @@ function getReleaseInfo(octokit, config, labels) {
             target: config.baseBranch,
             previousTagName: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || undefined,
             configuration_file_path: config.releaseCfgPath,
-        }).catch(() => "");
+        }).catch((err) => {
+            core.warning(`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`);
+            return "";
+        });
         return { currentTag, nextTag, bumpLevel, notes };
     });
 }

@@ -574,7 +574,10 @@ async function handleMergedReleasePR(
 		target: config.baseBranch,
 		previousTagName: currentTag?.raw || undefined,
 		configuration_file_path: config.releaseCfgPath,
-	}).catch(() => "");
+	}).catch((err) => {
+		core.warning(`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`);
+		return "";
+	});
 
 	setReleaseOutputs("release_required", {
 		prNumber: String(relPR.number),
@@ -655,7 +658,10 @@ async function createNewReleasePR(
 		target: config.baseBranch,
 		previousTagName: currentTag?.raw || undefined,
 		configuration_file_path: config.releaseCfgPath,
-	}).catch(() => "");
+	}).catch((err) => {
+		core.warning(`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`);
+		return "";
+	});
 
 	const { title, body } = buildPRText({
 		owner: config.owner,
@@ -729,7 +735,10 @@ async function getReleaseInfo(
 		target: config.baseBranch,
 		previousTagName: currentTag?.raw || undefined,
 		configuration_file_path: config.releaseCfgPath,
-	}).catch(() => "");
+	}).catch((err) => {
+		core.warning(`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`);
+		return "";
+	});
 
 	return { currentTag, nextTag, bumpLevel, notes };
 }
