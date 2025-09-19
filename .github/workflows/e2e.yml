@@ -233,12 +233,23 @@ jobs:
             echo "✅ Release workflow completed!"
 
             # Find the release PR created by the workflow
+            # Try to find the release PR - it should target the test base branch
             RELEASE_PR_NUMBER=$(gh pr list \
               --repo actionutils/test-create-release-pr \
-              --base "$TEST_BASE_BRANCH" \
+              --state open \
               --head "release/pr" \
-              --json number \
-              --jq '.[0].number')
+              --json number,baseRefName \
+              --jq ".[] | select(.baseRefName == \"$TEST_BASE_BRANCH\") | .number")
+
+            # If not found with test base branch, try main branch
+            if [ -z "$RELEASE_PR_NUMBER" ] || [ "$RELEASE_PR_NUMBER" = "null" ]; then
+              RELEASE_PR_NUMBER=$(gh pr list \
+                --repo actionutils/test-create-release-pr \
+                --state open \
+                --head "release/pr" \
+                --json number \
+                --jq '.[0].number')
+            fi
 
             if [ -n "$RELEASE_PR_NUMBER" ] && [ "$RELEASE_PR_NUMBER" != "null" ]; then
               echo "Found release PR: #$RELEASE_PR_NUMBER"
