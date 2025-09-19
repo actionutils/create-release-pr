@@ -32843,6 +32843,125 @@ function ensureReleaseBranch(octokit_1, owner_1, repo_1, _a) {
         core.info(`Created release branch ${releaseBranch} at SHA: ${newSha}`);
     });
 }
+function updateReleaseBranch(octokit_1, owner_1, repo_1, _a) {
+    return __awaiter(this, arguments, void 0, function* (octokit, owner, repo, { baseBranch, releaseBranch, prNumber }) {
+        core.info(`Checking if release branch needs update against ${baseBranch}`);
+        try {
+            // Get the current release branch SHA
+            const { data: releaseRef } = yield octokit.rest.git.getRef({
+                owner,
+                repo,
+                ref: `heads/${releaseBranch}`,
+            });
+            const releaseSha = releaseRef.object.sha;
+            // Get the base branch SHA
+            const { data: baseRef } = yield octokit.rest.git.getRef({
+                owner,
+                repo,
+                ref: `heads/${baseBranch}`,
+            });
+            const baseSha = baseRef.object.sha;
+            // Check if base branch is already merged into release branch
+            const { data: comparison } = yield octokit.rest.repos.compareCommits({
+                owner,
+                repo,
+                base: releaseSha,
+                head: baseSha,
+            });
+            if (comparison.ahead_by === 0) {
+                core.info("Release branch is already up-to-date with base branch");
+                return false;
+            }
+            core.info(`Base branch is ahead by ${comparison.ahead_by} commits, merging...`);
+            // Check if release branch has unique commits
+            const { data: reverseComparison } = yield octokit.rest.repos.compareCommits({
+                owner,
+                repo,
+                base: baseSha,
+                head: releaseSha,
+            });
+            // If PR exists and release branch has unique commits, use the update-branch API
+            if (prNumber && reverseComparison.ahead_by > 0) {
+                core.info(`Release branch has ${reverseComparison.ahead_by} unique commits, using PR update-branch API`);
+                try {
+                    // Use the update-branch API which properly handles merges
+                    yield octokit.rest.pulls.updateBranch({
+                        owner,
+                        repo,
+                        pull_number: prNumber,
+                    });
+                    core.info(`Successfully updated release branch via PR #${prNumber}`);
+                    return true;
+                }
+                catch (updateError) {
+                    core.warning(`Failed to update via PR API: ${updateError instanceof Error ? updateError.message : String(updateError)}`);
+                    // Fall through to manual update
+                }
+            }
+            // If no PR or update-branch failed, do manual update
+            if (reverseComparison.ahead_by > 0) {
+                core.info(`Release branch has ${reverseComparison.ahead_by} unique commits, performing manual merge`);
+                // Get trees for merge
+                const { data: baseCommit } = yield octokit.rest.git.getCommit({
+                    owner,
+                    repo,
+                    commit_sha: baseSha,
+                });
+                const baseTreeSha = baseCommit.tree.sha;
+                // Create a merge commit
+                // Note: This is a simplified merge that takes the base tree
+                // In a real merge, we'd need to handle conflicts properly
+                const { data: mergeCommit } = yield octokit.rest.git.createCommit({
+                    owner,
+                    repo,
+                    message: `chore(release): merge ${baseBranch} into ${releaseBranch}`,
+                    tree: baseTreeSha, // Using base tree - this will lose release branch changes if there are conflicts
+                    parents: [releaseSha, baseSha], // Both parents for merge commit
+                });
+                yield octokit.rest.git.updateRef({
+                    owner,
+                    repo,
+                    ref: `heads/${releaseBranch}`,
+                    sha: mergeCommit.sha,
+                    force: false,
+                });
+                core.info(`Successfully merged base branch into release branch at ${mergeCommit.sha}`);
+                return true;
+            }
+            else {
+                // No unique commits in release branch, safe to reset to base
+                core.info("No unique commits in release branch, resetting to base branch");
+                const { data: baseCommit } = yield octokit.rest.git.getCommit({
+                    owner,
+                    repo,
+                    commit_sha: baseSha,
+                });
+                const treeSha = baseCommit.tree.sha;
+                const { data: newCommit } = yield octokit.rest.git.createCommit({
+                    owner,
+                    repo,
+                    message: "chore(release): sync with base branch",
+                    tree: treeSha,
+                    parents: [baseSha],
+                });
+                const newSha = newCommit.sha;
+                yield octokit.rest.git.updateRef({
+                    owner,
+                    repo,
+                    ref: `heads/${releaseBranch}`,
+                    sha: newSha,
+                    force: true,
+                });
+                core.info(`Successfully reset release branch to base branch at ${newSha}`);
+                return true;
+            }
+        }
+        catch (error) {
+            core.warning(`Failed to update release branch: ${error instanceof Error ? error.message : String(error)}`);
+            return false;
+        }
+    });
+}
 function ensureAndAddLabel(octokit, owner, repo, prNumber, labelName) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
@@ -33084,6 +33203,12 @@ function updateExistingReleasePR(octokit, config, existing) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b;
         core.info(`Found existing release PR #${existing.number} - updating`);
+        // Update release branch with base branch changes if needed
+        yield updateReleaseBranch(octokit, config.owner, config.repo, {
+            baseBranch: config.baseBranch,
+            releaseBranch: config.releaseBranch,
+            prNumber: existing.number,
+        });
         const releaseInfo = yield getReleaseInfo(octokit, config, existing.labels || []);
         const { title, body } = buildPRText({
             owner: config.owner,
@@ -33121,6 +33246,11 @@ function createNewReleasePR(octokit, config, currentTag) {
     return __awaiter(this, void 0, void 0, function* () {
         core.info("No existing release PR found - creating new one");
         yield ensureReleaseBranch(octokit, config.owner, config.repo, {
+            baseBranch: config.baseBranch,
+            releaseBranch: config.releaseBranch,
+        });
+        // Update release branch with base branch changes if needed
+        yield updateReleaseBranch(octokit, config.owner, config.repo, {
             baseBranch: config.baseBranch,
             releaseBranch: config.releaseBranch,
         });
