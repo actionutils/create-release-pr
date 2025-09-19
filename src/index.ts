@@ -304,7 +304,6 @@ function buildPRText({
 	owner,
 	repo,
 	baseBranch,
-	releaseBranch,
 	currentTag,
 	nextTag,
 	notes,
@@ -312,7 +311,6 @@ function buildPRText({
 	owner: string;
 	repo: string;
 	baseBranch: string;
-	releaseBranch: string;
 	currentTag: string | null;
 	nextTag: string;
 	notes: string;
@@ -321,42 +319,10 @@ function buildPRText({
 	const title = known ? `Release for ${nextTag}` : "Release for new version";
 	const serverUrl = process.env.GITHUB_SERVER_URL || "https://github.com";
 	const parts: string[] = [];
-	// Build the release info table
-	parts.push("<details><summary>Release Information</summary>");
-	parts.push("");
-	parts.push("| | |");
-	parts.push("|---|---|");
-
-	// Current tag with link to release page
-	if (currentTag) {
-		parts.push(
-			`| **Current Release** | [${currentTag}](${serverUrl}/${owner}/${repo}/releases/tag/${currentTag}) |`,
-		);
-	} else {
-		parts.push("| **Current Release** | (none) |");
-	}
 
 	const nextTagOrTBD =
 		nextTag || "TBD - Add label: `bump:major`, `bump:minor`, or `bump:patch`";
 
-	// Next tag
-	parts.push(`| **Next Release** | ${nextTagOrTBD} |`);
-
-	// Release branch
-	parts.push(`| **Release Branch** | [${releaseBranch}](${serverUrl}/${owner}/${repo}/tree/${releaseBranch}) |`);
-
-	// Full changelog link
-	if (currentTag) {
-		parts.push(
-			`| **Changes** | [View Diff](${serverUrl}/${owner}/${repo}/compare/${currentTag}...${baseBranch}) |`,
-		);
-	}
-	parts.push("");
-	parts.push("</details>");
-
-	parts.push("");
-	parts.push("---");
-	parts.push("");
 	parts.push("### ↓ Release Notes Preview ↓");
 	parts.push("");
 	if (notes) {
@@ -373,8 +339,6 @@ function buildPRText({
 	} else {
 		parts.push("_Release notes will be generated here_");
 	}
-	parts.push("");
-	parts.push("---");
 
 	// Add workflow update metadata at the end, right-aligned
 	const runId = process.env.GITHUB_RUN_ID;
@@ -463,7 +427,6 @@ async function updateReleasePR(
 		owner: config.owner,
 		repo: config.repo,
 		baseBranch: config.baseBranch,
-		releaseBranch: config.releaseBranch,
 		currentTag: releaseInfo.currentTag?.raw || null,
 		nextTag: releaseInfo.nextTag,
 		notes: releaseInfo.notes,
@@ -596,7 +559,6 @@ async function updateExistingReleasePR(
 		owner: config.owner,
 		repo: config.repo,
 		baseBranch: config.baseBranch,
-		releaseBranch: config.releaseBranch,
 		currentTag: releaseInfo.currentTag?.raw || null,
 		nextTag: releaseInfo.nextTag,
 		notes: releaseInfo.notes,
@@ -650,7 +612,6 @@ async function createNewReleasePR(
 		owner: config.owner,
 		repo: config.repo,
 		baseBranch: config.baseBranch,
-		releaseBranch: config.releaseBranch,
 		currentTag: currentTag?.raw || null,
 		nextTag,
 		notes,
