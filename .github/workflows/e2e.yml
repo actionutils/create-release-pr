@@ -17,6 +17,10 @@ permissions:
   contents: read
   statuses: write  # Required for creating commit status checks
 
+concurrency:
+  group: e2e-test
+  cancel-in-progress: false  # Don't cancel in-progress tests as they modify external repository
+
 jobs:
   test:
     # Skip for fork PRs and Dependabot PRs when triggered by pull_request event
