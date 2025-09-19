@@ -32911,10 +32911,6 @@ function buildPRText({ owner, repo, baseBranch, releaseBranch, currentTag, nextT
     parts.push("");
     parts.push("### ↓ Release Notes Preview ↓");
     parts.push("");
-    parts.push("> [!NOTE] This is a preview of the release notes that will be published when this PR is merged.");
-    parts.push(`> You can directly edit the [${releaseBranch}](https://github.com/${owner}/${repo}/tree/${releaseBranch}) branch to prepare for the release.`);
-    parts.push("> The Full Changelog link may not work until the new tag is released.");
-    parts.push("");
     if (notes) {
         parts.push(`# Release ${nextTagOrTBD}`);
         parts.push("");
