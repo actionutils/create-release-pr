@@ -32724,23 +32724,27 @@ function run() {
         }
     });
 }
-function latestTag(octokit, owner, repo, prefix) {
+function latestTag(octokit, owner, repo) {
     return __awaiter(this, void 0, void 0, function* () {
-        core.debug(`Fetching tags with prefix: ${prefix}`);
-        const tags = yield octokit.paginate(octokit.rest.repos.listTags, {
-            owner,
-            repo,
-            per_page: 100,
-        });
-        const semvers = (tags || [])
-            .map((t) => t.name)
-            .filter((n) => n && n.startsWith(prefix))
-            .map((n) => semver.parse(n))
-            .filter((v) => !!v)
-            .sort((a, b) => semver.compare(a, b));
-        const latest = semvers.length ? semvers[semvers.length - 1] : null;
-        core.debug(`Found ${semvers.length} semver tags, latest: ${(latest === null || latest === void 0 ? void 0 : latest.toString()) || "none"}`);
-        return latest;
+        core.debug(`Fetching latest release`);
+        try {
+            const { data: latestRelease } = yield octokit.rest.repos.getLatestRelease({
+                owner,
+                repo,
+            });
+            if (latestRelease.tag_name) {
+                const parsed = semver.parse(latestRelease.tag_name);
+                if (parsed) {
+                    core.debug(`Found latest release: ${latestRelease.tag_name}`);
+                    return parsed;
+                }
+                core.debug(`Latest release ${latestRelease.tag_name} is not valid semver`);
+            }
+        }
+        catch (err) {
+            core.debug(`No releases found or error getting latest release: ${err instanceof Error ? err.message : String(err)}`);
+        }
+        return null;
     });
 }
 function detectBump(labels, cfg) {
@@ -33004,7 +33008,7 @@ function handlePushEvent(octokit, config) {
         }
         // Check for existing open release PR
         core.info("Checking for existing release PR");
-        const currentTag = yield latestTag(octokit, config.owner, config.repo, config.tagPrefix).catch(() => null);
+        const currentTag = yield latestTag(octokit, config.owner, config.repo);
         core.info(`Current tag: ${(currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || "(none)"}`);
         const existing = yield findOpenReleasePR(octokit, {
             owner: config.owner,
@@ -33038,7 +33042,7 @@ function findMergedReleasePR(octokit, config, headSha) {
 function handleMergedReleasePR(octokit, config, relPR) {
     return __awaiter(this, void 0, void 0, function* () {
         core.info(`Found merged release PR: #${relPR.number}`);
-        const currentTag = yield latestTag(octokit, config.owner, config.repo, config.tagPrefix).catch(() => null);
+        const currentTag = yield latestTag(octokit, config.owner, config.repo);
         core.info(`Current tag: ${(currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || "(none)"}`);
         const bumpLevel = detectBump(relPR.labels || [], {
             labelMajor: config.labelMajor,
@@ -33144,7 +33148,7 @@ function createNewReleasePR(octokit, config, currentTag) {
 }
 function getReleaseInfo(octokit, config, labels) {
     return __awaiter(this, void 0, void 0, function* () {
-        const currentTag = yield latestTag(octokit, config.owner, config.repo, config.tagPrefix).catch(() => null);
+        const currentTag = yield latestTag(octokit, config.owner, config.repo);
         core.info(`Current tag: ${(currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || "(none)"}`);
         const bumpLevel = detectBump(labels, {
             labelMajor: config.labelMajor,
