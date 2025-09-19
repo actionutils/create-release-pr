@@ -333,12 +333,11 @@ function buildPRText({
 		parts.push("| **Current Release** | (none) |");
 	}
 
-  const nextTagOrTBD = nextTag || "⚠️ TBD - Add label: `bump:major`, `bump:minor`, or `bump:patch`";
+	const nextTagOrTBD =
+		nextTag || "TBD - Add label: `bump:major`, `bump:minor`, or `bump:patch`";
 
 	// Next tag
-	parts.push(
-		`| **Next Release** | ${nextTagOrTBD} |`,
-	);
+	parts.push(`| **Next Release** | ${nextTagOrTBD} |`);
 
 	// Full changelog link
 	if (currentTag) {
@@ -362,8 +361,8 @@ function buildPRText({
 	);
 	parts.push("");
 	if (notes) {
-    parts.push(`# Release ${nextTagOrTBD}`);
-    parts.push("");
+		parts.push(`# Release ${nextTagOrTBD}`);
+		parts.push("");
 		parts.push(notes);
 	} else {
 		parts.push("_Release notes will be generated here_");
@@ -375,9 +374,9 @@ function buildPRText({
 	const runId = process.env.GITHUB_RUN_ID;
 	const updateTime = new Date().toISOString();
 
-	if (runId && workflow) {
+	if (runId) {
 		const workflowUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}`;
-    parts.push("");
+		parts.push("");
 		parts.push(
 			`<div align="right"><sub>Last updated: <a href="${workflowUrl}">${updateTime}</a> by <a href='https://github.com/actionutils/create-release-pr'>create-release-pr</a></sub></div>`,
 		);
