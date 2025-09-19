@@ -32912,6 +32912,7 @@ function buildPRText({ owner, repo, baseBranch, currentTag, nextTag, notes, }) {
     parts.push("### ↓ Release Notes Preview ↓");
     parts.push("");
     parts.push("> [!NOTE] This is a preview of the release notes that will be published when this PR is merged.");
+    parts.push("> You can directly edit this release-pr branch to prepare for the release.");
     parts.push("> The Full Changelog link may not work until the new tag is released.");
     parts.push("");
     if (notes) {
