@@ -397,8 +397,17 @@ async function handlePullRequestEvent(
 	const action = payload.action;
 	core.debug(`PR action: ${action}`);
 
-	if (action !== "labeled" && action !== "unlabeled") {
-		core.info("Action is not labeled/unlabeled - skipping");
+	// Handle status check for release PR
+	if (
+		action === "opened" ||
+		action === "synchronize" ||
+		action === "reopened" ||
+		action === "labeled" ||
+		action === "unlabeled"
+	) {
+		// Continue processing
+	} else {
+		core.info(`Action '${action}' is not relevant - skipping`);
 		setOutputWithLog("state", "noop");
 		return;
 	}
@@ -411,8 +420,14 @@ async function handlePullRequestEvent(
 
 	// Check if this is the release PR itself
 	if (pr.head.ref === config.releaseBranch) {
-		core.info("Label change on release PR - updating");
-		await updateReleasePR(octokit, config, pr);
+		if (action === "labeled" || action === "unlabeled") {
+			core.info("Label change on release PR - updating");
+			await updateReleasePR(octokit, config, pr);
+		} else {
+			// For opened/synchronize/reopened, set status check
+			core.info("Release PR opened/updated - setting status check");
+			await setReleasePRStatusCheck(octokit, config, pr);
+		}
 		return;
 	}
 
@@ -448,6 +463,55 @@ async function handlePullRequestEvent(
 	setOutputWithLog("state", "noop");
 }
 
+async function setReleasePRStatusCheck(
+	octokit: ReturnType<typeof getOctokit>,
+	config: Config,
+	pr: WebhookPullRequestEvent["pull_request"],
+): Promise<void> {
+	core.info(`Setting status check for release PR #${pr.number}`);
+
+	const bumpLevel = detectBump(pr.labels || [], {
+		labelMajor: config.labelMajor,
+		labelMinor: config.labelMinor,
+		labelPatch: config.labelPatch,
+	});
+
+	const hasValidBumpLabel = bumpLevel !== "unknown";
+	const state = hasValidBumpLabel ? "success" : "pending";
+	const description = hasValidBumpLabel
+		? `Bump level: ${bumpLevel}`
+		: `Missing bump label. Add ${config.labelMajor}, ${config.labelMinor}, or ${config.labelPatch}`;
+
+	// Set commit status
+	try {
+		await octokit.rest.repos.createCommitStatus({
+			owner: config.owner,
+			repo: config.repo,
+			sha: pr.head.sha,
+			state: state as "error" | "failure" | "pending" | "success",
+			description,
+			context: "create-release-pr/bump-label",
+		});
+		core.info(`Status check set: ${state} - ${description}`);
+	} catch (err) {
+		core.warning(
+			`Failed to set commit status: ${err instanceof Error ? err.message : String(err)}`,
+		);
+	}
+
+	// Also update the PR if labels changed
+	if (bumpLevel !== "unknown") {
+		await updateReleasePR(octokit, config, pr);
+	} else {
+		// Still output the state
+		setOutputWithLog("state", "pr_status_check");
+		setOutputWithLog("pr_number", String(pr.number));
+		setOutputWithLog("pr_url", pr.html_url);
+		setOutputWithLog("bump_level", bumpLevel);
+		setOutputWithLog("status_check_state", state);
+	}
+}
+
 async function updateReleasePR(
 	octokit: ReturnType<typeof getOctokit>,
 	config: Config,
@@ -456,6 +520,30 @@ async function updateReleasePR(
 	core.info(`Processing release PR #${pr.number}`);
 
 	const releaseInfo = await getReleaseInfo(octokit, config, pr.labels || []);
+
+	// Set status check based on bump level
+	const hasValidBumpLabel = releaseInfo.bumpLevel !== "unknown";
+	const statusState = hasValidBumpLabel ? "success" : "pending";
+	const statusDescription = hasValidBumpLabel
+		? `Bump level: ${releaseInfo.bumpLevel}`
+		: `Missing bump label. Add ${config.labelMajor}, ${config.labelMinor}, or ${config.labelPatch}`;
+
+	try {
+		await octokit.rest.repos.createCommitStatus({
+			owner: config.owner,
+			repo: config.repo,
+			sha: pr.head.sha,
+			state: statusState as "error" | "failure" | "pending" | "success",
+			description: statusDescription,
+			context: "create-release-pr/bump-label",
+		});
+		core.info(`Status check updated: ${statusState} - ${statusDescription}`);
+	} catch (err) {
+		core.warning(
+			`Failed to set commit status: ${err instanceof Error ? err.message : String(err)}`,
+		);
+	}
+
 	const { title, body } = buildPRText({
 		owner: config.owner,
 		repo: config.repo,
