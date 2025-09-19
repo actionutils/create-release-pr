@@ -32735,11 +32735,14 @@ function latestTag(octokit, owner, repo, prefix) {
         const semvers = (tags || [])
             .map((t) => t.name)
             .filter((n) => n && n.startsWith(prefix))
-            .map((n) => ({ name: n, v: semver.parse(n.slice(prefix.length)) }))
-            .filter((x) => !!x.v)
-            .sort((a, b) => semver.compare(a.v, b.v));
-        const latest = semvers.length ? semvers[semvers.length - 1].name : null;
-        core.debug(`Found ${semvers.length} semver tags, latest: ${latest || "none"}`);
+            .map((n) => ({
+            name: n,
+            version: semver.parse(n.slice(prefix.length)),
+        }))
+            .filter((x) => !!x.version)
+            .sort((a, b) => semver.compare(a.version, b.version));
+        const latest = semvers.length ? semvers[semvers.length - 1] : null;
+        core.debug(`Found ${semvers.length} semver tags, latest: ${(latest === null || latest === void 0 ? void 0 : latest.name) || "none"}`);
         return latest;
     });
 }
@@ -32754,30 +32757,14 @@ function detectBump(labels, cfg) {
     return "unknown";
 }
 function calcNext(prefix, currentTag, bumpLevel) {
-    let cur = null;
-    if (currentTag && currentTag.startsWith(prefix)) {
-        cur = semver.parse(currentTag.slice(prefix.length));
-    }
-    if (!cur) {
-        // If no current tag or invalid semver, start from 0.0.0
-        cur = semver.parse("0.0.0");
-    }
+    const cur = (currentTag === null || currentTag === void 0 ? void 0 : currentTag.version) || semver.parse("0.0.0");
     if (!cur) {
         throw new Error(`Failed to parse version`);
     }
-    let newVersion;
-    if (bumpLevel === "major") {
-        newVersion = semver.inc(cur, "major") || "";
-    }
-    else if (bumpLevel === "minor") {
-        newVersion = semver.inc(cur, "minor") || "";
-    }
-    else if (bumpLevel === "patch") {
-        newVersion = semver.inc(cur, "patch") || "";
-    }
-    else {
+    if (bumpLevel === "unknown") {
         return "";
     }
+    const newVersion = semver.inc(cur, bumpLevel);
     if (!newVersion) {
         throw new Error(`Failed to increment version`);
     }
@@ -32975,13 +32962,14 @@ function handlePullRequestEvent(octokit, config) {
 }
 function updateReleasePR(octokit, config, pr) {
     return __awaiter(this, void 0, void 0, function* () {
+        var _a, _b;
         core.info(`Processing release PR #${pr.number}`);
         const releaseInfo = yield getReleaseInfo(octokit, config, pr.labels || []);
         const { title, body } = buildPRText({
             owner: config.owner,
             repo: config.repo,
             baseBranch: config.baseBranch,
-            currentTag: releaseInfo.currentTag,
+            currentTag: ((_a = releaseInfo.currentTag) === null || _a === void 0 ? void 0 : _a.name) || null,
             nextTag: releaseInfo.nextTag,
             notes: releaseInfo.notes,
         });
@@ -32994,7 +32982,15 @@ function updateReleasePR(octokit, config, pr) {
             body,
         });
         core.info("PR updated successfully");
-        setReleaseOutputs("pr_changed", Object.assign({ prNumber: String(pr.number), prUrl: pr.html_url, prBranch: config.releaseBranch }, releaseInfo));
+        setReleaseOutputs("pr_changed", {
+            prNumber: String(pr.number),
+            prUrl: pr.html_url,
+            prBranch: config.releaseBranch,
+            currentTag: ((_b = releaseInfo.currentTag) === null || _b === void 0 ? void 0 : _b.name) || null,
+            nextTag: releaseInfo.nextTag,
+            bumpLevel: releaseInfo.bumpLevel,
+            notes: releaseInfo.notes,
+        });
     });
 }
 function handlePushEvent(octokit, config) {
@@ -33012,7 +33008,7 @@ function handlePushEvent(octokit, config) {
         // Check for existing open release PR
         core.info("Checking for existing release PR");
         const currentTag = yield latestTag(octokit, config.owner, config.repo, config.tagPrefix).catch(() => null);
-        core.info(`Current tag: ${currentTag || "(none)"}`);
+        core.info(`Current tag: ${(currentTag === null || currentTag === void 0 ? void 0 : currentTag.name) || "(none)"}`);
         const existing = yield findOpenReleasePR(octokit, {
             owner: config.owner,
             repo: config.repo,
@@ -33046,7 +33042,7 @@ function handleMergedReleasePR(octokit, config, relPR) {
     return __awaiter(this, void 0, void 0, function* () {
         core.info(`Found merged release PR: #${relPR.number}`);
         const currentTag = yield latestTag(octokit, config.owner, config.repo, config.tagPrefix).catch(() => null);
-        core.info(`Current tag: ${currentTag || "(none)"}`);
+        core.info(`Current tag: ${(currentTag === null || currentTag === void 0 ? void 0 : currentTag.name) || "(none)"}`);
         const bumpLevel = detectBump(relPR.labels || [], {
             labelMajor: config.labelMajor,
             labelMinor: config.labelMinor,
@@ -33062,7 +33058,7 @@ function handleMergedReleasePR(octokit, config, relPR) {
             prNumber: "",
             prUrl: "",
             prBranch: "",
-            currentTag,
+            currentTag: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.name) || null,
             nextTag,
             bumpLevel,
             notes: "",
@@ -33071,13 +33067,14 @@ function handleMergedReleasePR(octokit, config, relPR) {
 }
 function updateExistingReleasePR(octokit, config, existing) {
     return __awaiter(this, void 0, void 0, function* () {
+        var _a, _b;
         core.info(`Found existing release PR #${existing.number} - updating`);
         const releaseInfo = yield getReleaseInfo(octokit, config, existing.labels || []);
         const { title, body } = buildPRText({
             owner: config.owner,
             repo: config.repo,
             baseBranch: config.baseBranch,
-            currentTag: releaseInfo.currentTag,
+            currentTag: ((_a = releaseInfo.currentTag) === null || _a === void 0 ? void 0 : _a.name) || null,
             nextTag: releaseInfo.nextTag,
             notes: releaseInfo.notes,
         });
@@ -33090,7 +33087,15 @@ function updateExistingReleasePR(octokit, config, existing) {
             body,
         });
         core.info("PR updated successfully");
-        setReleaseOutputs("pr_changed", Object.assign({ prNumber: String(updated.number), prUrl: updated.html_url, prBranch: config.releaseBranch }, releaseInfo));
+        setReleaseOutputs("pr_changed", {
+            prNumber: String(updated.number),
+            prUrl: updated.html_url,
+            prBranch: config.releaseBranch,
+            currentTag: ((_b = releaseInfo.currentTag) === null || _b === void 0 ? void 0 : _b.name) || null,
+            nextTag: releaseInfo.nextTag,
+            bumpLevel: releaseInfo.bumpLevel,
+            notes: releaseInfo.notes,
+        });
     });
 }
 function createNewReleasePR(octokit, config, currentTag) {
@@ -33106,14 +33111,14 @@ function createNewReleasePR(octokit, config, currentTag) {
         const notes = yield generateNotes(octokit, config.owner, config.repo, {
             tagName: `${config.tagPrefix}next`,
             target: config.baseBranch,
-            previousTagName: currentTag || undefined,
+            previousTagName: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.name) || undefined,
             configuration_file_path: config.releaseCfgPath,
         }).catch(() => "");
         const { title, body } = buildPRText({
             owner: config.owner,
             repo: config.repo,
             baseBranch: config.baseBranch,
-            currentTag,
+            currentTag: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.name) || null,
             nextTag,
             notes,
         });
@@ -33133,7 +33138,7 @@ function createNewReleasePR(octokit, config, currentTag) {
             prNumber: String(created.number),
             prUrl: created.html_url,
             prBranch: config.releaseBranch,
-            currentTag,
+            currentTag: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.name) || null,
             nextTag,
             bumpLevel,
             notes,
@@ -33143,7 +33148,7 @@ function createNewReleasePR(octokit, config, currentTag) {
 function getReleaseInfo(octokit, config, labels) {
     return __awaiter(this, void 0, void 0, function* () {
         const currentTag = yield latestTag(octokit, config.owner, config.repo, config.tagPrefix).catch(() => null);
-        core.info(`Current tag: ${currentTag || "(none)"}`);
+        core.info(`Current tag: ${(currentTag === null || currentTag === void 0 ? void 0 : currentTag.name) || "(none)"}`);
         const bumpLevel = detectBump(labels, {
             labelMajor: config.labelMajor,
             labelMinor: config.labelMinor,
@@ -33158,7 +33163,7 @@ function getReleaseInfo(octokit, config, labels) {
         const notes = yield generateNotes(octokit, config.owner, config.repo, {
             tagName: nextTag || `${config.tagPrefix}next`,
             target: config.baseBranch,
-            previousTagName: currentTag || undefined,
+            previousTagName: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.name) || undefined,
             configuration_file_path: config.releaseCfgPath,
         }).catch(() => "");
         return { currentTag, nextTag, bumpLevel, notes };
