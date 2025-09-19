@@ -358,7 +358,14 @@ function buildPRText({
 	if (notes) {
 		parts.push(`# Release ${nextTagOrTBD}`);
 		parts.push("");
-		parts.push(notes);
+		// Replace the Full Changelog link with a working View Diff link
+		let modifiedNotes = notes;
+		if (currentTag && nextTag) {
+			const fullChangelogPattern = /\*\*Full Changelog\*\*: https:\/\/github\.com\/[^\/]+\/[^\/]+\/compare\/[^\.]+\.\.\.[^\s]+/g;
+			const viewDiffLink = `**Full Changelog**: https://github.com/${owner}/${repo}/compare/${currentTag}...${baseBranch}`;
+			modifiedNotes = notes.replace(fullChangelogPattern, viewDiffLink);
+		}
+		parts.push(modifiedNotes);
 	} else {
 		parts.push("_Release notes will be generated here_");
 	}
