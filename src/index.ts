@@ -353,11 +353,11 @@ function buildPRText({
 	parts.push("");
 	parts.push("</details>");
 	parts.push("");
-	parts.push("### ↓ Release Notes Preview ↓");
-	parts.push("");
 	if (notes) {
-		parts.push(`# Release ${nextTag || "<TBD>"}`);
-		parts.push("");
+		if (nextTag) {
+			parts.push(`# Release ${nextTag}`);
+			parts.push("");
+		}
 		// Replace the Full Changelog link to use baseBranch instead of nextTag
 		let modifiedNotes = notes;
 		if (currentTag && nextTag) {
