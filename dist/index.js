@@ -32843,6 +32843,29 @@ function ensureReleaseBranch(octokit_1, owner_1, repo_1, _a) {
         core.info(`Created release branch ${releaseBranch} at SHA: ${newSha}`);
     });
 }
+function setCommitStatusForBumpLabel(octokit, config, sha, bumpLevel) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const hasValidBumpLabel = bumpLevel !== "unknown";
+        const state = hasValidBumpLabel ? "success" : "pending";
+        const description = hasValidBumpLabel
+            ? `Bump level: ${bumpLevel}`
+            : `Missing bump label. Add ${config.labelMajor}, ${config.labelMinor}, or ${config.labelPatch}`;
+        try {
+            yield octokit.rest.repos.createCommitStatus({
+                owner: config.owner,
+                repo: config.repo,
+                sha,
+                state: state,
+                description,
+                context: "create-release-pr/bump-label",
+            });
+            core.info(`Status check set: ${state} - ${description}`);
+        }
+        catch (err) {
+            core.warning(`Failed to set commit status: ${err instanceof Error ? err.message : String(err)}`);
+        }
+    });
+}
 function ensureAndAddLabel(octokit, owner, repo, prNumber, labelName) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
@@ -32994,32 +33017,15 @@ function setReleasePRStatusCheck(octokit, config, pr) {
             labelMinor: config.labelMinor,
             labelPatch: config.labelPatch,
         });
-        const hasValidBumpLabel = bumpLevel !== "unknown";
-        const state = hasValidBumpLabel ? "success" : "pending";
-        const description = hasValidBumpLabel
-            ? `Bump level: ${bumpLevel}`
-            : `Missing bump label. Add ${config.labelMajor}, ${config.labelMinor}, or ${config.labelPatch}`;
-        // Set commit status
-        try {
-            yield octokit.rest.repos.createCommitStatus({
-                owner: config.owner,
-                repo: config.repo,
-                sha: pr.head.sha,
-                state: state,
-                description,
-                context: "create-release-pr/bump-label",
-            });
-            core.info(`Status check set: ${state} - ${description}`);
-        }
-        catch (err) {
-            core.warning(`Failed to set commit status: ${err instanceof Error ? err.message : String(err)}`);
-        }
+        // Use common function to set commit status
+        yield setCommitStatusForBumpLabel(octokit, config, pr.head.sha, bumpLevel);
         // Also update the PR if labels changed
         if (bumpLevel !== "unknown") {
             yield updateReleasePR(octokit, config, pr);
         }
         else {
             // Still output the state
+            const state = bumpLevel !== "unknown" ? "success" : "pending";
             setOutputWithLog("state", "pr_status_check");
             setOutputWithLog("pr_number", String(pr.number));
             setOutputWithLog("pr_url", pr.html_url);
@@ -33033,26 +33039,8 @@ function updateReleasePR(octokit, config, pr) {
         var _a, _b;
         core.info(`Processing release PR #${pr.number}`);
         const releaseInfo = yield getReleaseInfo(octokit, config, pr.labels || []);
-        // Set status check based on bump level
-        const hasValidBumpLabel = releaseInfo.bumpLevel !== "unknown";
-        const statusState = hasValidBumpLabel ? "success" : "pending";
-        const statusDescription = hasValidBumpLabel
-            ? `Bump level: ${releaseInfo.bumpLevel}`
-            : `Missing bump label. Add ${config.labelMajor}, ${config.labelMinor}, or ${config.labelPatch}`;
-        try {
-            yield octokit.rest.repos.createCommitStatus({
-                owner: config.owner,
-                repo: config.repo,
-                sha: pr.head.sha,
-                state: statusState,
-                description: statusDescription,
-                context: "create-release-pr/bump-label",
-            });
-            core.info(`Status check updated: ${statusState} - ${statusDescription}`);
-        }
-        catch (err) {
-            core.warning(`Failed to set commit status: ${err instanceof Error ? err.message : String(err)}`);
-        }
+        // Use common function to set commit status
+        yield setCommitStatusForBumpLabel(octokit, config, pr.head.sha, releaseInfo.bumpLevel);
         const { title, body } = buildPRText({
             owner: config.owner,
             repo: config.repo,
