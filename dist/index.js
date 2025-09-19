@@ -32881,7 +32881,7 @@ function ensureAndAddLabel(octokit, owner, repo, prNumber, labelName) {
         }
     });
 }
-function buildPRText({ owner, repo, baseBranch, currentTag, nextTag, notes, }) {
+function buildPRText({ owner, repo, baseBranch, releaseBranch, currentTag, nextTag, notes, }) {
     const known = !!nextTag;
     const title = known ? `Release for ${nextTag}` : "Release for new version";
     const parts = [];
@@ -32912,7 +32912,7 @@ function buildPRText({ owner, repo, baseBranch, currentTag, nextTag, notes, }) {
     parts.push("### ↓ Release Notes Preview ↓");
     parts.push("");
     parts.push("> [!NOTE] This is a preview of the release notes that will be published when this PR is merged.");
-    parts.push("> You can directly edit this release-pr branch to prepare for the release.");
+    parts.push(`> You can directly edit the [${releaseBranch}](https://github.com/${owner}/${repo}/tree/${releaseBranch}) branch to prepare for the release.`);
     parts.push("> The Full Changelog link may not work until the new tag is released.");
     parts.push("");
     if (notes) {
@@ -32990,6 +32990,7 @@ function updateReleasePR(octokit, config, pr) {
             owner: config.owner,
             repo: config.repo,
             baseBranch: config.baseBranch,
+            releaseBranch: config.releaseBranch,
             currentTag: ((_a = releaseInfo.currentTag) === null || _a === void 0 ? void 0 : _a.raw) || null,
             nextTag: releaseInfo.nextTag,
             notes: releaseInfo.notes,
@@ -33095,6 +33096,7 @@ function updateExistingReleasePR(octokit, config, existing) {
             owner: config.owner,
             repo: config.repo,
             baseBranch: config.baseBranch,
+            releaseBranch: config.releaseBranch,
             currentTag: ((_a = releaseInfo.currentTag) === null || _a === void 0 ? void 0 : _a.raw) || null,
             nextTag: releaseInfo.nextTag,
             notes: releaseInfo.notes,
@@ -33139,6 +33141,7 @@ function createNewReleasePR(octokit, config, currentTag) {
             owner: config.owner,
             repo: config.repo,
             baseBranch: config.baseBranch,
+            releaseBranch: config.releaseBranch,
             currentTag: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || null,
             nextTag,
             notes,

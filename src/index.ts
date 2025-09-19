@@ -304,6 +304,7 @@ function buildPRText({
 	owner,
 	repo,
 	baseBranch,
+	releaseBranch,
 	currentTag,
 	nextTag,
 	notes,
@@ -311,6 +312,7 @@ function buildPRText({
 	owner: string;
 	repo: string;
 	baseBranch: string;
+	releaseBranch: string;
 	currentTag: string | null;
 	nextTag: string;
 	notes: string;
@@ -357,7 +359,7 @@ function buildPRText({
 		"> [!NOTE] This is a preview of the release notes that will be published when this PR is merged.",
 	);
 	parts.push(
-		"> You can directly edit this release-pr branch to prepare for the release.",
+		`> You can directly edit the [${releaseBranch}](https://github.com/${owner}/${repo}/tree/${releaseBranch}) branch to prepare for the release.`,
 	);
 	parts.push(
 		"> The Full Changelog link may not work until the new tag is released.",
@@ -460,6 +462,7 @@ async function updateReleasePR(
 		owner: config.owner,
 		repo: config.repo,
 		baseBranch: config.baseBranch,
+		releaseBranch: config.releaseBranch,
 		currentTag: releaseInfo.currentTag?.raw || null,
 		nextTag: releaseInfo.nextTag,
 		notes: releaseInfo.notes,
@@ -592,6 +595,7 @@ async function updateExistingReleasePR(
 		owner: config.owner,
 		repo: config.repo,
 		baseBranch: config.baseBranch,
+		releaseBranch: config.releaseBranch,
 		currentTag: releaseInfo.currentTag?.raw || null,
 		nextTag: releaseInfo.nextTag,
 		notes: releaseInfo.notes,
@@ -645,6 +649,7 @@ async function createNewReleasePR(
 		owner: config.owner,
 		repo: config.repo,
 		baseBranch: config.baseBranch,
+		releaseBranch: config.releaseBranch,
 		currentTag: currentTag?.raw || null,
 		nextTag,
 		notes,
