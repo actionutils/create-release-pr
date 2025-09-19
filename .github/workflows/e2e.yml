@@ -236,7 +236,7 @@ jobs:
             RELEASE_PR_NUMBER=$(gh pr list \
               --repo actionutils/test-create-release-pr \
               --base "$TEST_BASE_BRANCH" \
-              --head "release-pr-$TEST_BASE_BRANCH" \
+              --head "release/pr" \
               --json number \
               --jq '.[0].number')
 
