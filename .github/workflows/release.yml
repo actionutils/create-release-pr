@@ -5,7 +5,7 @@ on:
     branches:
       - main  # Only run on main branch pushes (PR merges)
   pull_request:
-    types: [ labeled, unlabeled ]
+    types: [ opened, synchronize, reopened, labeled, unlabeled ]
 
 permissions: {}
 
@@ -15,6 +15,7 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
+      statuses: write
     runs-on: ubuntu-latest
     outputs:
       state: ${{ steps.release-pr.outputs.state }}

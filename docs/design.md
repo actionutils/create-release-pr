@@ -75,13 +75,15 @@
 - `state`: One of:
   - `release_required` — release PR was (already) merged and a release should occur (by other automation). No open release PR exists now.
   - `pr_changed` — a release PR was created or updated in this run.
-- `pr_number`: Release PR number when `state=pr_changed`, otherwise empty.
-- `pr_url`: Release PR URL when `state=pr_changed`, otherwise empty.
+  - `pr_status_check` — status check was set on the release PR (no other changes made).
+- `pr_number`: Release PR number when `state=pr_changed` or `pr_status_check`, otherwise empty.
+- `pr_url`: Release PR URL when `state=pr_changed` or `pr_status_check`, otherwise empty.
 - `pr_branch`: Release branch name when `state=pr_changed`, otherwise empty.
 - `current_tag`: Latest parsed tag (empty if none).
 - `next_tag`: When determinable; empty if unknown.
 - `bump_level`: `major|minor|patch|unknown` — label-derived when available.
 - `release_notes`: The generated release notes text used in the PR body.
+- `status_check_state`: Status check state (`success|pending`) when `state=pr_status_check`.
 
 ## Inputs (minimal v1)
 - `base-branch`: Default `main`.
@@ -97,6 +99,7 @@
 - `contents: write` (read commit/tag info, create branches, and required by the Generate Release Notes API)
 - `pull-requests: write` (create/update PRs)
 - `issues: write` (apply labels)
+- `statuses: write` (set commit status checks)
 
 ## Implementation Details (Key API Steps)
 1) Read context: `owner`, `repo`, `base-branch (main)`, `head-sha`, event type.
@@ -142,7 +145,7 @@ on:
   push:
     branches: [ main ]
   pull_request:
-    types: [ labeled, unlabeled ]
+    types: [ opened, synchronize, reopened, labeled, unlabeled ]
 permissions: {}
 jobs:
   release-pr:
@@ -150,6 +153,7 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
+      statuses: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -32843,6 +32843,29 @@ function ensureReleaseBranch(octokit_1, owner_1, repo_1, _a) {
         core.info(`Created release branch ${releaseBranch} at SHA: ${newSha}`);
     });
 }
+function setCommitStatusForBumpLabel(octokit, config, sha, bumpLevel) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const hasValidBumpLabel = bumpLevel !== "unknown";
+        const state = hasValidBumpLabel ? "success" : "pending";
+        const description = hasValidBumpLabel
+            ? `Bump level: ${bumpLevel}`
+            : `Missing bump label. Add ${config.labelMajor}, ${config.labelMinor}, or ${config.labelPatch}`;
+        try {
+            yield octokit.rest.repos.createCommitStatus({
+                owner: config.owner,
+                repo: config.repo,
+                sha,
+                state: state,
+                description,
+                context: "create-release-pr/bump-label",
+            });
+            core.info(`Status check set: ${state} - ${description}`);
+        }
+        catch (err) {
+            core.warning(`Failed to set commit status: ${err instanceof Error ? err.message : String(err)}`);
+        }
+    });
+}
 function ensureAndAddLabel(octokit, owner, repo, prNumber, labelName) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
@@ -32931,8 +32954,16 @@ function handlePullRequestEvent(octokit, config) {
         const payload = github_1.context.payload;
         const action = payload.action;
         core.debug(`PR action: ${action}`);
-        if (action !== "labeled" && action !== "unlabeled") {
-            core.info("Action is not labeled/unlabeled - skipping");
+        // Handle status check for release PR
+        if (action === "opened" ||
+            action === "synchronize" ||
+            action === "reopened" ||
+            action === "labeled" ||
+            action === "unlabeled") {
+            // Continue processing
+        }
+        else {
+            core.info(`Action '${action}' is not relevant - skipping`);
             setOutputWithLog("state", "noop");
             return;
         }
@@ -32943,8 +32974,15 @@ function handlePullRequestEvent(octokit, config) {
         }
         // Check if this is the release PR itself
         if (pr.head.ref === config.releaseBranch) {
-            core.info("Label change on release PR - updating");
-            yield updateReleasePR(octokit, config, pr);
+            if (action === "labeled" || action === "unlabeled") {
+                core.info("Label change on release PR - updating");
+                yield updateReleasePR(octokit, config, pr);
+            }
+            else {
+                // For opened/synchronize/reopened, set status check
+                core.info("Release PR opened/updated - setting status check");
+                yield setReleasePRStatusCheck(octokit, config, pr);
+            }
             return;
         }
         // For closed PRs, we need to update the release PR to regenerate release notes
@@ -32971,11 +33009,38 @@ function handlePullRequestEvent(octokit, config) {
         setOutputWithLog("state", "noop");
     });
 }
+function setReleasePRStatusCheck(octokit, config, pr) {
+    return __awaiter(this, void 0, void 0, function* () {
+        core.info(`Setting status check for release PR #${pr.number}`);
+        const bumpLevel = detectBump(pr.labels || [], {
+            labelMajor: config.labelMajor,
+            labelMinor: config.labelMinor,
+            labelPatch: config.labelPatch,
+        });
+        // Use common function to set commit status
+        yield setCommitStatusForBumpLabel(octokit, config, pr.head.sha, bumpLevel);
+        // Also update the PR if labels changed
+        if (bumpLevel !== "unknown") {
+            yield updateReleasePR(octokit, config, pr);
+        }
+        else {
+            // Still output the state
+            const state = bumpLevel !== "unknown" ? "success" : "pending";
+            setOutputWithLog("state", "pr_status_check");
+            setOutputWithLog("pr_number", String(pr.number));
+            setOutputWithLog("pr_url", pr.html_url);
+            setOutputWithLog("bump_level", bumpLevel);
+            setOutputWithLog("status_check_state", state);
+        }
+    });
+}
 function updateReleasePR(octokit, config, pr) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b;
         core.info(`Processing release PR #${pr.number}`);
         const releaseInfo = yield getReleaseInfo(octokit, config, pr.labels || []);
+        // Use common function to set commit status
+        yield setCommitStatusForBumpLabel(octokit, config, pr.head.sha, releaseInfo.bumpLevel);
         const { title, body } = buildPRText({
             owner: config.owner,
             repo: config.repo,
@@ -33064,14 +33129,16 @@ function handleMergedReleasePR(octokit, config, relPR) {
             labelPatch: config.labelPatch,
         });
         core.info(`Detected bump level: ${bumpLevel}`);
-        const nextTag = bumpLevel === "unknown"
-            ? ""
-            : calcNext(config.tagPrefix, currentTag, bumpLevel);
-        if (nextTag)
-            core.info(`Release required for: ${nextTag}`);
+        // Error if no bump level is specified
+        if (bumpLevel === "unknown") {
+            throw new Error(`Release PR #${relPR.number} was merged without a bump label. ` +
+                `Please add one of the following labels: ${config.labelMajor}, ${config.labelMinor}, or ${config.labelPatch}`);
+        }
+        const nextTag = calcNext(config.tagPrefix, currentTag, bumpLevel);
+        core.info(`Release required for: ${nextTag}`);
         // Generate release notes for the merged PR
         const notes = yield generateNotes(octokit, config.owner, config.repo, {
-            tagName: nextTag || config.baseBranch,
+            tagName: nextTag,
             target: config.baseBranch,
             previousTagName: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || undefined,
             configuration_file_path: config.releaseCfgPath,

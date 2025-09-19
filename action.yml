@@ -38,7 +38,7 @@ runs:
   main: dist/index.js
 outputs:
   state:
-    description: release_required | pr_changed | noop
+    description: release_required | pr_changed | pr_status_check | noop
   pr_number:
     description: Release PR number
   pr_url:
@@ -53,3 +53,5 @@ outputs:
     description: major | minor | patch | unknown
   release_notes:
     description: Generated release notes text
+  status_check_state:
+    description: Status check state (success | pending) when state is pr_status_check
