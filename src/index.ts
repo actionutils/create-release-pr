@@ -23,13 +23,8 @@ interface Config {
 	releaseCfgPath?: string;
 }
 
-interface LatestTag {
-	name: string;
-	version: semver.SemVer;
-}
-
 interface ReleaseInfo {
-	currentTag: LatestTag | null;
+	currentTag: semver.SemVer | null;
 	nextTag: string;
 	bumpLevel: BumpLevel;
 	notes: string;
@@ -104,7 +99,7 @@ async function latestTag(
 	owner: string,
 	repo: string,
 	prefix: string,
-): Promise<LatestTag | null> {
+): Promise<semver.SemVer | null> {
 	core.debug(`Fetching tags with prefix: ${prefix}`);
 	const tags = await octokit.paginate(octokit.rest.repos.listTags, {
 		owner,
@@ -114,15 +109,12 @@ async function latestTag(
 	const semvers = (tags || [])
 		.map((t) => t.name)
 		.filter((n) => n && n.startsWith(prefix))
-		.map((n) => ({
-			name: n,
-			version: semver.parse(n.slice(prefix.length)),
-		}))
-		.filter((x): x is LatestTag => !!x.version)
-		.sort((a, b) => semver.compare(a.version, b.version));
+		.map((n) => semver.parse(n))
+		.filter((v): v is semver.SemVer => !!v)
+		.sort((a, b) => semver.compare(a, b));
 	const latest = semvers.length ? semvers[semvers.length - 1] : null;
 	core.debug(
-		`Found ${semvers.length} semver tags, latest: ${latest?.name || "none"}`,
+		`Found ${semvers.length} semver tags, latest: ${latest?.toString() || "none"}`,
 	);
 	return latest;
 }
@@ -142,10 +134,10 @@ function detectBump(
 
 function calcNext(
 	prefix: string,
-	currentTag: LatestTag | null,
+	currentTag: semver.SemVer | null,
 	bumpLevel: BumpLevel,
 ): string {
-	const cur = currentTag?.version || semver.parse("0.0.0");
+	const cur = currentTag || semver.parse("0.0.0");
 	if (!cur) {
 		throw new Error(`Failed to parse version`);
 	}
@@ -436,7 +428,7 @@ async function updateReleasePR(
 		owner: config.owner,
 		repo: config.repo,
 		baseBranch: config.baseBranch,
-		currentTag: releaseInfo.currentTag?.name || null,
+		currentTag: releaseInfo.currentTag?.raw || null,
 		nextTag: releaseInfo.nextTag,
 		notes: releaseInfo.notes,
 	});
@@ -455,7 +447,7 @@ async function updateReleasePR(
 		prNumber: String(pr.number),
 		prUrl: pr.html_url,
 		prBranch: config.releaseBranch,
-		currentTag: releaseInfo.currentTag?.name || null,
+		currentTag: releaseInfo.currentTag?.raw || null,
 		nextTag: releaseInfo.nextTag,
 		bumpLevel: releaseInfo.bumpLevel,
 		notes: releaseInfo.notes,
@@ -486,7 +478,7 @@ async function handlePushEvent(
 		config.repo,
 		config.tagPrefix,
 	).catch(() => null);
-	core.info(`Current tag: ${currentTag?.name || "(none)"}`);
+	core.info(`Current tag: ${currentTag?.raw || "(none)"}`);
 
 	const existing = await findOpenReleasePR(octokit, {
 		owner: config.owner,
@@ -535,7 +527,7 @@ async function handleMergedReleasePR(
 		config.repo,
 		config.tagPrefix,
 	).catch(() => null);
-	core.info(`Current tag: ${currentTag?.name || "(none)"}`);
+	core.info(`Current tag: ${currentTag?.raw || "(none)"}`);
 
 	const bumpLevel = detectBump(relPR.labels || [], {
 		labelMajor: config.labelMajor,
@@ -554,7 +546,7 @@ async function handleMergedReleasePR(
 		prNumber: "",
 		prUrl: "",
 		prBranch: "",
-		currentTag: currentTag?.name || null,
+		currentTag: currentTag?.raw || null,
 		nextTag,
 		bumpLevel,
 		notes: "",
@@ -578,7 +570,7 @@ async function updateExistingReleasePR(
 		owner: config.owner,
 		repo: config.repo,
 		baseBranch: config.baseBranch,
-		currentTag: releaseInfo.currentTag?.name || null,
+		currentTag: releaseInfo.currentTag?.raw || null,
 		nextTag: releaseInfo.nextTag,
 		notes: releaseInfo.notes,
 	});
@@ -597,7 +589,7 @@ async function updateExistingReleasePR(
 		prNumber: String(updated.number),
 		prUrl: updated.html_url,
 		prBranch: config.releaseBranch,
-		currentTag: releaseInfo.currentTag?.name || null,
+		currentTag: releaseInfo.currentTag?.raw || null,
 		nextTag: releaseInfo.nextTag,
 		bumpLevel: releaseInfo.bumpLevel,
 		notes: releaseInfo.notes,
@@ -607,7 +599,7 @@ async function updateExistingReleasePR(
 async function createNewReleasePR(
 	octokit: ReturnType<typeof getOctokit>,
 	config: Config,
-	currentTag: LatestTag | null,
+	currentTag: semver.SemVer | null,
 ): Promise<void> {
 	core.info("No existing release PR found - creating new one");
 
@@ -623,7 +615,7 @@ async function createNewReleasePR(
 	const notes = await generateNotes(octokit, config.owner, config.repo, {
 		tagName: `${config.tagPrefix}next`,
 		target: config.baseBranch,
-		previousTagName: currentTag?.name || undefined,
+		previousTagName: currentTag?.raw || undefined,
 		configuration_file_path: config.releaseCfgPath,
 	}).catch(() => "");
 
@@ -631,7 +623,7 @@ async function createNewReleasePR(
 		owner: config.owner,
 		repo: config.repo,
 		baseBranch: config.baseBranch,
-		currentTag: currentTag?.name || null,
+		currentTag: currentTag?.raw || null,
 		nextTag,
 		notes,
 	});
@@ -662,7 +654,7 @@ async function createNewReleasePR(
 		prNumber: String(created.number),
 		prUrl: created.html_url,
 		prBranch: config.releaseBranch,
-		currentTag: currentTag?.name || null,
+		currentTag: currentTag?.raw || null,
 		nextTag,
 		bumpLevel,
 		notes,
@@ -680,7 +672,7 @@ async function getReleaseInfo(
 		config.repo,
 		config.tagPrefix,
 	).catch(() => null);
-	core.info(`Current tag: ${currentTag?.name || "(none)"}`);
+	core.info(`Current tag: ${currentTag?.raw || "(none)"}`);
 
 	const bumpLevel = detectBump(labels, {
 		labelMajor: config.labelMajor,
@@ -698,7 +690,7 @@ async function getReleaseInfo(
 	const notes = await generateNotes(octokit, config.owner, config.repo, {
 		tagName: nextTag || `${config.tagPrefix}next`,
 		target: config.baseBranch,
-		previousTagName: currentTag?.name || undefined,
+		previousTagName: currentTag?.raw || undefined,
 		configuration_file_path: config.releaseCfgPath,
 	}).catch(() => "");
 
