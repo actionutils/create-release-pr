@@ -52,4 +52,4 @@ outputs:
   bump_level:
     description: major | minor | patch | unknown
   release_notes:
-    description: Generated release notes text
+    description: Generated release notes text when state=release_required or state=pr_changed

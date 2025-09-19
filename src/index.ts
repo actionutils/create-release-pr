@@ -568,6 +568,14 @@ async function handleMergedReleasePR(
 			: calcNext(config.tagPrefix, currentTag, bumpLevel);
 	if (nextTag) core.info(`Release required for: ${nextTag}`);
 
+	// Generate release notes for the merged PR
+	const notes = await generateNotes(octokit, config.owner, config.repo, {
+		tagName: nextTag || config.baseBranch,
+		target: config.baseBranch,
+		previousTagName: currentTag?.raw || undefined,
+		configuration_file_path: config.releaseCfgPath,
+	}).catch(() => "");
+
 	setReleaseOutputs("release_required", {
 		prNumber: String(relPR.number),
 		prUrl: relPR.html_url || "",
@@ -575,7 +583,7 @@ async function handleMergedReleasePR(
 		currentTag: currentTag?.raw || null,
 		nextTag,
 		bumpLevel,
-		notes: "",
+		notes,
 	});
 }
 

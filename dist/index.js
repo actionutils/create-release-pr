@@ -33069,6 +33069,13 @@ function handleMergedReleasePR(octokit, config, relPR) {
             : calcNext(config.tagPrefix, currentTag, bumpLevel);
         if (nextTag)
             core.info(`Release required for: ${nextTag}`);
+        // Generate release notes for the merged PR
+        const notes = yield generateNotes(octokit, config.owner, config.repo, {
+            tagName: nextTag || config.baseBranch,
+            target: config.baseBranch,
+            previousTagName: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || undefined,
+            configuration_file_path: config.releaseCfgPath,
+        }).catch(() => "");
         setReleaseOutputs("release_required", {
             prNumber: String(relPR.number),
             prUrl: relPR.html_url || "",
@@ -33076,7 +33083,7 @@ function handleMergedReleasePR(octokit, config, relPR) {
             currentTag: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || null,
             nextTag,
             bumpLevel,
-            notes: "",
+            notes,
         });
     });
 }
