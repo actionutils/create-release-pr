@@ -331,15 +331,25 @@ function buildPRText({
 	const nextTagOrTBD =
 		nextTag || "TBD - Add label: `bump:major`, `bump:minor`, or `bump:patch`";
 
-	parts.push(`You can directly edit the [${releaseBranch}](${serverUrl}/${owner}/${repo}/tree/${releaseBranch}) branch to prepare for the release.`);
+	parts.push(
+		`You can directly edit the [${releaseBranch}](${serverUrl}/${owner}/${repo}/tree/${releaseBranch}) branch to prepare for the release.`,
+	);
 	parts.push("");
 	parts.push("<details>");
 	parts.push("<summary>How to specify the next version</summary>");
 	parts.push("");
-	parts.push("Add one of the following labels to this PR to specify the version bump:");
-	parts.push(`- \`${labelMajor}\` - for major version bump (e.g., 1.0.0 → 2.0.0)`);
-	parts.push(`- \`${labelMinor}\` - for minor version bump (e.g., 1.0.0 → 1.1.0)`);
-	parts.push(`- \`${labelPatch}\` - for patch version bump (e.g., 1.0.0 → 1.0.1)`);
+	parts.push(
+		"Add one of the following labels to this PR to specify the version bump:",
+	);
+	parts.push(
+		`- \`${labelMajor}\` - for major version bump (e.g., 1.0.0 → 2.0.0)`,
+	);
+	parts.push(
+		`- \`${labelMinor}\` - for minor version bump (e.g., 1.0.0 → 1.1.0)`,
+	);
+	parts.push(
+		`- \`${labelPatch}\` - for patch version bump (e.g., 1.0.0 → 1.0.1)`,
+	);
 	parts.push("");
 	parts.push("</details>");
 	parts.push("");
@@ -351,7 +361,10 @@ function buildPRText({
 		// Replace the Full Changelog link with a working View Diff link
 		let modifiedNotes = notes;
 		if (currentTag && nextTag) {
-			const fullChangelogPattern = new RegExp(`\\*\\*Full Changelog\\*\\*: ${serverUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\/[^\\/]+\\/[^\\/]+\\/compare\\/[^\\.]+\\.\\.\\.[^\\s]+`, 'g');
+			const fullChangelogPattern = new RegExp(
+				`\\*\\*Full Changelog\\*\\*: ${serverUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/[^\\/]+\\/[^\\/]+\\/compare\\/[^\\.]+\\.\\.\\.[^\\s]+`,
+				"g",
+			);
 			const viewDiffLink = `**Full Changelog**: ${serverUrl}/${owner}/${repo}/compare/${currentTag}...${baseBranch}`;
 			modifiedNotes = notes.replace(fullChangelogPattern, viewDiffLink);
 		}

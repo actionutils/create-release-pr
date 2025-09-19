@@ -32907,7 +32907,7 @@ function buildPRText({ owner, repo, baseBranch, releaseBranch, labelMajor, label
         // Replace the Full Changelog link with a working View Diff link
         let modifiedNotes = notes;
         if (currentTag && nextTag) {
-            const fullChangelogPattern = new RegExp(`\\*\\*Full Changelog\\*\\*: ${serverUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\/[^\\/]+\\/[^\\/]+\\/compare\\/[^\\.]+\\.\\.\\.[^\\s]+`, 'g');
+            const fullChangelogPattern = new RegExp(`\\*\\*Full Changelog\\*\\*: ${serverUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/[^\\/]+\\/[^\\/]+\\/compare\\/[^\\.]+\\.\\.\\.[^\\s]+`, "g");
             const viewDiffLink = `**Full Changelog**: ${serverUrl}/${owner}/${repo}/compare/${currentTag}...${baseBranch}`;
             modifiedNotes = notes.replace(fullChangelogPattern, viewDiffLink);
         }
