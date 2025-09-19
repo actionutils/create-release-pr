@@ -328,9 +328,6 @@ function buildPRText({
 	const serverUrl = process.env.GITHUB_SERVER_URL || "https://github.com";
 	const parts: string[] = [];
 
-	const nextTagOrTBD =
-		nextTag || "TBD - Add label: `bump:major`, `bump:minor`, or `bump:patch`";
-
 	parts.push(
 		`You can directly edit the [${releaseBranch}](${serverUrl}/${owner}/${repo}/tree/${releaseBranch}) branch to prepare for the release.`,
 	);
@@ -353,20 +350,23 @@ function buildPRText({
 	parts.push("");
 	parts.push("</details>");
 	parts.push("");
-	parts.push("### ↓ Release Notes Preview ↓");
-	parts.push("");
 	if (notes) {
-		parts.push(`# Release ${nextTagOrTBD}`);
-		parts.push("");
-		// Replace the Full Changelog link with a working View Diff link
+		if (nextTag) {
+			parts.push(`# Release ${nextTag}`);
+			parts.push("");
+		}
+		// Replace the Full Changelog link to use baseBranch instead of nextTag
 		let modifiedNotes = notes;
 		if (currentTag && nextTag) {
+			// Simple regex to replace ${currentTag}...${nextTag} with ${currentTag}...${baseBranch}
 			const fullChangelogPattern = new RegExp(
-				`\\*\\*Full Changelog\\*\\*: ${serverUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/[^\\/]+\\/[^\\/]+\\/compare\\/[^\\.]+\\.\\.\\.[^\\s]+`,
+				`(\\*\\*Full Changelog\\*\\*: .*\\/compare\\/)${currentTag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.\\.\\.${nextTag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
 				"g",
 			);
-			const viewDiffLink = `**Full Changelog**: ${serverUrl}/${owner}/${repo}/compare/${currentTag}...${baseBranch}`;
-			modifiedNotes = notes.replace(fullChangelogPattern, viewDiffLink);
+			modifiedNotes = notes.replace(
+				fullChangelogPattern,
+				`$1${currentTag}...${baseBranch}`,
+			);
 		}
 		parts.push(modifiedNotes);
 	} else {
@@ -643,7 +643,7 @@ async function createNewReleasePR(
 	core.info("Release branch ensured, creating PR with unknown bump level");
 
 	const notes = await generateNotes(octokit, config.owner, config.repo, {
-		tagName: `${config.tagPrefix}next`,
+		tagName: config.baseBranch,
 		target: config.baseBranch,
 		previousTagName: currentTag?.raw || undefined,
 		configuration_file_path: config.releaseCfgPath,
@@ -717,7 +717,7 @@ async function getReleaseInfo(
 	if (nextTag) core.info(`Next tag will be: ${nextTag}`);
 
 	const notes = await generateNotes(octokit, config.owner, config.repo, {
-		tagName: nextTag || `${config.tagPrefix}next`,
+		tagName: nextTag || config.baseBranch,
 		target: config.baseBranch,
 		previousTagName: currentTag?.raw || undefined,
 		configuration_file_path: config.releaseCfgPath,
