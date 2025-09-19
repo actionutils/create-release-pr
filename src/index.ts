@@ -305,6 +305,9 @@ function buildPRText({
 	repo,
 	baseBranch,
 	releaseBranch,
+	labelMajor,
+	labelMinor,
+	labelPatch,
 	currentTag,
 	nextTag,
 	notes,
@@ -313,6 +316,9 @@ function buildPRText({
 	repo: string;
 	baseBranch: string;
 	releaseBranch: string;
+	labelMajor: string;
+	labelMinor: string;
+	labelPatch: string;
 	currentTag: string | null;
 	nextTag: string;
 	notes: string;
@@ -326,6 +332,16 @@ function buildPRText({
 		nextTag || "TBD - Add label: `bump:major`, `bump:minor`, or `bump:patch`";
 
 	parts.push(`You can directly edit the [${releaseBranch}](${serverUrl}/${owner}/${repo}/tree/${releaseBranch}) branch to prepare for the release.`);
+	parts.push("");
+	parts.push("<details>");
+	parts.push("<summary>How to specify the next version</summary>");
+	parts.push("");
+	parts.push("Add one of the following labels to this PR to specify the version bump:");
+	parts.push(`- \`${labelMajor}\` - for major version bump (e.g., 1.0.0 → 2.0.0)`);
+	parts.push(`- \`${labelMinor}\` - for minor version bump (e.g., 1.0.0 → 1.1.0)`);
+	parts.push(`- \`${labelPatch}\` - for patch version bump (e.g., 1.0.0 → 1.0.1)`);
+	parts.push("");
+	parts.push("</details>");
 	parts.push("");
 	parts.push("### ↓ Release Notes Preview ↓");
 	parts.push("");
@@ -432,6 +448,9 @@ async function updateReleasePR(
 		repo: config.repo,
 		baseBranch: config.baseBranch,
 		releaseBranch: config.releaseBranch,
+		labelMajor: config.labelMajor,
+		labelMinor: config.labelMinor,
+		labelPatch: config.labelPatch,
 		currentTag: releaseInfo.currentTag?.raw || null,
 		nextTag: releaseInfo.nextTag,
 		notes: releaseInfo.notes,
@@ -565,6 +584,9 @@ async function updateExistingReleasePR(
 		repo: config.repo,
 		baseBranch: config.baseBranch,
 		releaseBranch: config.releaseBranch,
+		labelMajor: config.labelMajor,
+		labelMinor: config.labelMinor,
+		labelPatch: config.labelPatch,
 		currentTag: releaseInfo.currentTag?.raw || null,
 		nextTag: releaseInfo.nextTag,
 		notes: releaseInfo.notes,
@@ -619,6 +641,9 @@ async function createNewReleasePR(
 		repo: config.repo,
 		baseBranch: config.baseBranch,
 		releaseBranch: config.releaseBranch,
+		labelMajor: config.labelMajor,
+		labelMinor: config.labelMinor,
+		labelPatch: config.labelPatch,
 		currentTag: currentTag?.raw || null,
 		nextTag,
 		notes,

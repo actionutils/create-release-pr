@@ -32881,13 +32881,23 @@ function ensureAndAddLabel(octokit, owner, repo, prNumber, labelName) {
         }
     });
 }
-function buildPRText({ owner, repo, baseBranch, releaseBranch, currentTag, nextTag, notes, }) {
+function buildPRText({ owner, repo, baseBranch, releaseBranch, labelMajor, labelMinor, labelPatch, currentTag, nextTag, notes, }) {
     const known = !!nextTag;
     const title = known ? `Release for ${nextTag}` : "Release for new version";
     const serverUrl = process.env.GITHUB_SERVER_URL || "https://github.com";
     const parts = [];
     const nextTagOrTBD = nextTag || "TBD - Add label: `bump:major`, `bump:minor`, or `bump:patch`";
     parts.push(`You can directly edit the [${releaseBranch}](${serverUrl}/${owner}/${repo}/tree/${releaseBranch}) branch to prepare for the release.`);
+    parts.push("");
+    parts.push("<details>");
+    parts.push("<summary>How to specify the next version</summary>");
+    parts.push("");
+    parts.push("Add one of the following labels to this PR to specify the version bump:");
+    parts.push(`- \`${labelMajor}\` - for major version bump (e.g., 1.0.0 → 2.0.0)`);
+    parts.push(`- \`${labelMinor}\` - for minor version bump (e.g., 1.0.0 → 1.1.0)`);
+    parts.push(`- \`${labelPatch}\` - for patch version bump (e.g., 1.0.0 → 1.0.1)`);
+    parts.push("");
+    parts.push("</details>");
     parts.push("");
     parts.push("### ↓ Release Notes Preview ↓");
     parts.push("");
@@ -32972,6 +32982,9 @@ function updateReleasePR(octokit, config, pr) {
             repo: config.repo,
             baseBranch: config.baseBranch,
             releaseBranch: config.releaseBranch,
+            labelMajor: config.labelMajor,
+            labelMinor: config.labelMinor,
+            labelPatch: config.labelPatch,
             currentTag: ((_a = releaseInfo.currentTag) === null || _a === void 0 ? void 0 : _a.raw) || null,
             nextTag: releaseInfo.nextTag,
             notes: releaseInfo.notes,
@@ -33078,6 +33091,9 @@ function updateExistingReleasePR(octokit, config, existing) {
             repo: config.repo,
             baseBranch: config.baseBranch,
             releaseBranch: config.releaseBranch,
+            labelMajor: config.labelMajor,
+            labelMinor: config.labelMinor,
+            labelPatch: config.labelPatch,
             currentTag: ((_a = releaseInfo.currentTag) === null || _a === void 0 ? void 0 : _a.raw) || null,
             nextTag: releaseInfo.nextTag,
             notes: releaseInfo.notes,
@@ -33123,6 +33139,9 @@ function createNewReleasePR(octokit, config, currentTag) {
             repo: config.repo,
             baseBranch: config.baseBranch,
             releaseBranch: config.releaseBranch,
+            labelMajor: config.labelMajor,
+            labelMinor: config.labelMinor,
+            labelPatch: config.labelPatch,
             currentTag: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || null,
             nextTag,
             notes,
