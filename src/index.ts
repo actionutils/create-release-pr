@@ -328,9 +328,6 @@ function buildPRText({
 	const serverUrl = process.env.GITHUB_SERVER_URL || "https://github.com";
 	const parts: string[] = [];
 
-	const nextTagOrTBD =
-		nextTag || "TBD - Add label: `bump:major`, `bump:minor`, or `bump:patch`";
-
 	parts.push(
 		`You can directly edit the [${releaseBranch}](${serverUrl}/${owner}/${repo}/tree/${releaseBranch}) branch to prepare for the release.`,
 	);
@@ -366,7 +363,10 @@ function buildPRText({
 				`(\\*\\*Full Changelog\\*\\*: .*\\/compare\\/)${currentTag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.\\.\\.${nextTag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
 				"g",
 			);
-			modifiedNotes = notes.replace(fullChangelogPattern, `$1${currentTag}...${baseBranch}`);
+			modifiedNotes = notes.replace(
+				fullChangelogPattern,
+				`$1${currentTag}...${baseBranch}`,
+			);
 		}
 		parts.push(modifiedNotes);
 	} else {

@@ -32886,7 +32886,6 @@ function buildPRText({ owner, repo, baseBranch, releaseBranch, labelMajor, label
     const title = known ? `Release for ${nextTag}` : "Release for new version";
     const serverUrl = process.env.GITHUB_SERVER_URL || "https://github.com";
     const parts = [];
-    const nextTagOrTBD = nextTag || "TBD - Add label: `bump:major`, `bump:minor`, or `bump:patch`";
     parts.push(`You can directly edit the [${releaseBranch}](${serverUrl}/${owner}/${repo}/tree/${releaseBranch}) branch to prepare for the release.`);
     parts.push("");
     parts.push("<details>");
@@ -32899,17 +32898,17 @@ function buildPRText({ owner, repo, baseBranch, releaseBranch, labelMajor, label
     parts.push("");
     parts.push("</details>");
     parts.push("");
-    parts.push("### ↓ Release Notes Preview ↓");
-    parts.push("");
     if (notes) {
-        parts.push(`# Release ${nextTagOrTBD}`);
-        parts.push("");
-        // Replace the Full Changelog link with a working View Diff link
+        if (nextTag) {
+            parts.push(`# Release ${nextTag}`);
+            parts.push("");
+        }
+        // Replace the Full Changelog link to use baseBranch instead of nextTag
         let modifiedNotes = notes;
         if (currentTag && nextTag) {
-            const fullChangelogPattern = new RegExp(`\\*\\*Full Changelog\\*\\*: ${serverUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/[^\\/]+\\/[^\\/]+\\/compare\\/[^\\.]+\\.\\.\\.[^\\s]+`, "g");
-            const viewDiffLink = `**Full Changelog**: ${serverUrl}/${owner}/${repo}/compare/${currentTag}...${baseBranch}`;
-            modifiedNotes = notes.replace(fullChangelogPattern, viewDiffLink);
+            // Simple regex to replace ${currentTag}...${nextTag} with ${currentTag}...${baseBranch}
+            const fullChangelogPattern = new RegExp(`(\\*\\*Full Changelog\\*\\*: .*\\/compare\\/)${currentTag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.\\.\\.${nextTag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "g");
+            modifiedNotes = notes.replace(fullChangelogPattern, `$1${currentTag}...${baseBranch}`);
         }
         parts.push(modifiedNotes);
     }
@@ -33129,7 +33128,7 @@ function createNewReleasePR(octokit, config, currentTag) {
         const nextTag = "";
         core.info("Release branch ensured, creating PR with unknown bump level");
         const notes = yield generateNotes(octokit, config.owner, config.repo, {
-            tagName: `${config.tagPrefix}next`,
+            tagName: config.baseBranch,
             target: config.baseBranch,
             previousTagName: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || undefined,
             configuration_file_path: config.releaseCfgPath,
@@ -33185,7 +33184,7 @@ function getReleaseInfo(octokit, config, labels) {
         if (nextTag)
             core.info(`Next tag will be: ${nextTag}`);
         const notes = yield generateNotes(octokit, config.owner, config.repo, {
-            tagName: nextTag || `${config.tagPrefix}next`,
+            tagName: nextTag || config.baseBranch,
             target: config.baseBranch,
             previousTagName: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || undefined,
             configuration_file_path: config.releaseCfgPath,
