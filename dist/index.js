@@ -32691,6 +32691,7 @@ function getConfig() {
         labelPatch: core.getInput("label-patch") || "bump:patch",
         tagPrefix: core.getInput("tag-prefix") || "v",
         releaseCfgPath: core.getInput("configuration_file_path") || undefined,
+        skipReleaseNotes: core.getInput("skip-release-notes") === "true",
     };
 }
 function run() {
@@ -32917,7 +32918,7 @@ function ensureAndAddLabel(octokit, owner, repo, prNumber, labelName) {
         }
     });
 }
-function buildPRText({ owner, repo, baseBranch, releaseBranch, labelMajor, labelMinor, labelPatch, currentTag, nextTag, notes, }) {
+function buildPRText({ owner, repo, baseBranch, releaseBranch, labelMajor, labelMinor, labelPatch, currentTag, nextTag, notes, skipReleaseNotes, }) {
     const known = !!nextTag;
     const title = known ? `Release for ${nextTag}` : "Release for new version";
     const serverUrl = process.env.GITHUB_SERVER_URL || "https://github.com";
@@ -32934,22 +32935,24 @@ function buildPRText({ owner, repo, baseBranch, releaseBranch, labelMajor, label
     parts.push("");
     parts.push("</details>");
     parts.push("");
-    if (notes) {
-        if (nextTag) {
-            parts.push(`# Release ${nextTag}`);
-            parts.push("");
+    if (!skipReleaseNotes) {
+        if (notes) {
+            if (nextTag) {
+                parts.push(`# Release ${nextTag}`);
+                parts.push("");
+            }
+            // Replace the Full Changelog link to use baseBranch instead of nextTag
+            let modifiedNotes = notes;
+            if (currentTag && nextTag) {
+                // Simple regex to replace ${currentTag}...${nextTag} with ${currentTag}...${baseBranch}
+                const fullChangelogPattern = new RegExp(`(\\*\\*Full Changelog\\*\\*: .*\\/compare\\/)${currentTag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.\\.\\.${nextTag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "g");
+                modifiedNotes = notes.replace(fullChangelogPattern, `$1${currentTag}...${baseBranch}`);
+            }
+            parts.push(modifiedNotes);
         }
-        // Replace the Full Changelog link to use baseBranch instead of nextTag
-        let modifiedNotes = notes;
-        if (currentTag && nextTag) {
-            // Simple regex to replace ${currentTag}...${nextTag} with ${currentTag}...${baseBranch}
-            const fullChangelogPattern = new RegExp(`(\\*\\*Full Changelog\\*\\*: .*\\/compare\\/)${currentTag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.\\.\\.${nextTag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "g");
-            modifiedNotes = notes.replace(fullChangelogPattern, `$1${currentTag}...${baseBranch}`);
+        else {
+            parts.push("_Release notes will be generated here_");
         }
-        parts.push(modifiedNotes);
-    }
-    else {
-        parts.push("_Release notes will be generated here_");
     }
     // Add workflow update metadata at the end, right-aligned
     const runId = process.env.GITHUB_RUN_ID;
@@ -33040,6 +33043,7 @@ function updateReleasePR(octokit, config, pr) {
             currentTag: ((_a = releaseInfo.currentTag) === null || _a === void 0 ? void 0 : _a.raw) || null,
             nextTag: releaseInfo.nextTag,
             notes: releaseInfo.notes,
+            skipReleaseNotes: config.skipReleaseNotes,
         });
         core.info(`Updating PR #${pr.number} with new title and body`);
         yield octokit.rest.pulls.update({
@@ -33165,6 +33169,7 @@ function createNewReleasePR(octokit, config, currentTag) {
             currentTag: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || null,
             nextTag,
             notes,
+            skipReleaseNotes: config.skipReleaseNotes,
         });
         core.info(`Creating release PR from ${config.releaseBranch} to ${config.baseBranch}`);
         const { data: created } = yield octokit.rest.pulls.create({

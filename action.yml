@@ -29,6 +29,10 @@ inputs:
   configuration_file_path:
     description: Optional path to release notes configuration (e.g., .github/release.yml)
     required: false
+  skip-release-notes:
+    description: Skip adding release notes to PR description (useful for custom workflows)
+    required: false
+    default: 'false'
   github-token:
     description: GitHub token
     required: true
