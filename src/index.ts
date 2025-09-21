@@ -525,13 +525,13 @@ async function setReleasePRStatusCheck(
 async function updateReleasePR(
 	octokit: ReturnType<typeof getOctokit>,
 	config: Config,
-	pr: WebhookPullRequestEvent["pull_request"],
+	pr: { number: number; html_url: string; head: { sha: string }; labels?: Array<string | { name: string }> },
 ): Promise<void> {
 	core.info(`Processing release PR #${pr.number}`);
 
 	const releaseInfo = await getReleaseInfo(octokit, config, pr.labels || []);
 
-	// Use common function to set commit status
+	// Always set commit status
 	await setCommitStatusForBumpLabel(
 		octokit,
 		config,
@@ -602,7 +602,7 @@ async function handlePushEvent(
 	}).catch(() => null);
 
 	if (existing && existing.number) {
-		await updateExistingReleasePR(octokit, config, existing);
+		await updateReleasePR(octokit, config, existing);
 	} else {
 		await createNewReleasePR(octokit, config, currentTag);
 	}
@@ -677,53 +677,6 @@ async function handleMergedReleasePR(
 		nextTag,
 		bumpLevel,
 		notes,
-	});
-}
-
-async function updateExistingReleasePR(
-	octokit: ReturnType<typeof getOctokit>,
-	config: Config,
-	existing: any,
-): Promise<void> {
-	core.info(`Found existing release PR #${existing.number} - updating`);
-
-	const releaseInfo = await getReleaseInfo(
-		octokit,
-		config,
-		existing.labels || [],
-	);
-
-	const { title, body } = buildPRText({
-		owner: config.owner,
-		repo: config.repo,
-		baseBranch: config.baseBranch,
-		releaseBranch: config.releaseBranch,
-		labelMajor: config.labelMajor,
-		labelMinor: config.labelMinor,
-		labelPatch: config.labelPatch,
-		currentTag: releaseInfo.currentTag?.raw || null,
-		nextTag: releaseInfo.nextTag,
-		notes: releaseInfo.notes,
-	});
-
-	core.info(`Updating PR #${existing.number}`);
-	const { data: updated } = await octokit.rest.pulls.update({
-		owner: config.owner,
-		repo: config.repo,
-		pull_number: existing.number,
-		title,
-		body,
-	});
-
-	core.info("PR updated successfully");
-	setReleaseOutputs("pr_changed", {
-		prNumber: String(updated.number),
-		prUrl: updated.html_url,
-		prBranch: config.releaseBranch,
-		currentTag: releaseInfo.currentTag?.raw || null,
-		nextTag: releaseInfo.nextTag,
-		bumpLevel: releaseInfo.bumpLevel,
-		notes: releaseInfo.notes,
 	});
 }
 
