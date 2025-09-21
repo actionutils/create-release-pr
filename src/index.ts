@@ -139,6 +139,17 @@ function detectBump(
 	return "unknown";
 }
 
+function detectBumpFromConfig(
+	labels: Array<string | { name: string }>,
+	config: Config,
+): BumpLevel {
+	return detectBump(labels, {
+		labelMajor: config.labelMajor,
+		labelMinor: config.labelMinor,
+		labelPatch: config.labelPatch,
+	});
+}
+
 function calcNext(
 	prefix: string,
 	currentTag: semver.SemVer | null,
@@ -186,6 +197,27 @@ async function generateNotes(
 		configuration_file_path,
 	});
 	return res.data.body || "";
+}
+
+async function generateNotesWithErrorHandling(
+	octokit: ReturnType<typeof getOctokit>,
+	owner: string,
+	repo: string,
+	params: {
+		tagName: string;
+		target: string;
+		previousTagName?: string;
+		configuration_file_path?: string;
+	},
+): Promise<string> {
+	try {
+		return await generateNotes(octokit, owner, repo, params);
+	} catch (err) {
+		core.warning(
+			`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`,
+		);
+		return "";
+	}
 }
 
 async function findOpenReleasePR(
@@ -453,9 +485,9 @@ async function handlePullRequestEvent(
 			core.info("Label change on release PR - updating");
 			await updateReleasePR(octokit, config, pr);
 		} else {
-			// For opened/synchronize/reopened, set status check
-			core.info("Release PR opened/updated - setting status check");
-			await setReleasePRStatusCheck(octokit, config, pr);
+			// For opened/synchronize/reopened, update PR (which also sets status check)
+			core.info("Release PR opened/updated - updating");
+			await updateReleasePR(octokit, config, pr);
 		}
 		return;
 	}
@@ -490,36 +522,6 @@ async function handlePullRequestEvent(
 
 	core.info("Label change on non-release, non-merged PR - skipping");
 	setOutputWithLog("state", "noop");
-}
-
-async function setReleasePRStatusCheck(
-	octokit: ReturnType<typeof getOctokit>,
-	config: Config,
-	pr: WebhookPullRequestEvent["pull_request"],
-): Promise<void> {
-	core.info(`Setting status check for release PR #${pr.number}`);
-
-	const bumpLevel = detectBump(pr.labels || [], {
-		labelMajor: config.labelMajor,
-		labelMinor: config.labelMinor,
-		labelPatch: config.labelPatch,
-	});
-
-	// Use common function to set commit status
-	await setCommitStatusForBumpLabel(octokit, config, pr.head.sha, bumpLevel);
-
-	// Also update the PR if labels changed
-	if (bumpLevel !== "unknown") {
-		await updateReleasePR(octokit, config, pr);
-	} else {
-		// Still output the state
-		const state = bumpLevel !== "unknown" ? "success" : "pending";
-		setOutputWithLog("state", "pr_status_check");
-		setOutputWithLog("pr_number", String(pr.number));
-		setOutputWithLog("pr_url", pr.html_url);
-		setOutputWithLog("bump_level", bumpLevel);
-		setOutputWithLog("status_check_state", state);
-	}
 }
 
 async function updateReleasePR(
@@ -638,11 +640,7 @@ async function handleMergedReleasePR(
 	const currentTag = await latestTag(octokit, config.owner, config.repo);
 	core.info(`Current tag: ${currentTag?.raw || "(none)"}`);
 
-	const bumpLevel = detectBump(relPR.labels || [], {
-		labelMajor: config.labelMajor,
-		labelMinor: config.labelMinor,
-		labelPatch: config.labelPatch,
-	});
+	const bumpLevel = detectBumpFromConfig(relPR.labels || [], config);
 	core.info(`Detected bump level: ${bumpLevel}`);
 
 	// Error if no bump level is specified
@@ -657,16 +655,11 @@ async function handleMergedReleasePR(
 	core.info(`Release required for: ${nextTag}`);
 
 	// Generate release notes for the merged PR
-	const notes = await generateNotes(octokit, config.owner, config.repo, {
+	const notes = await generateNotesWithErrorHandling(octokit, config.owner, config.repo, {
 		tagName: nextTag,
 		target: config.baseBranch,
 		previousTagName: currentTag?.raw || undefined,
 		configuration_file_path: config.releaseCfgPath,
-	}).catch((err) => {
-		core.warning(
-			`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`,
-		);
-		return "";
 	});
 
 	setReleaseOutputs("release_required", {
@@ -696,16 +689,11 @@ async function createNewReleasePR(
 	const nextTag = "";
 	core.info("Release branch ensured, creating PR with unknown bump level");
 
-	const notes = await generateNotes(octokit, config.owner, config.repo, {
+	const notes = await generateNotesWithErrorHandling(octokit, config.owner, config.repo, {
 		tagName: config.baseBranch,
 		target: config.baseBranch,
 		previousTagName: currentTag?.raw || undefined,
 		configuration_file_path: config.releaseCfgPath,
-	}).catch((err) => {
-		core.warning(
-			`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`,
-		);
-		return "";
 	});
 
 	const { title, body } = buildPRText({
@@ -762,11 +750,7 @@ async function getReleaseInfo(
 	const currentTag = await latestTag(octokit, config.owner, config.repo);
 	core.info(`Current tag: ${currentTag?.raw || "(none)"}`);
 
-	const bumpLevel = detectBump(labels, {
-		labelMajor: config.labelMajor,
-		labelMinor: config.labelMinor,
-		labelPatch: config.labelPatch,
-	});
+	const bumpLevel = detectBumpFromConfig(labels, config);
 	core.info(`Detected bump level: ${bumpLevel}`);
 
 	const nextTag =
@@ -775,16 +759,11 @@ async function getReleaseInfo(
 			: calcNext(config.tagPrefix, currentTag, bumpLevel);
 	if (nextTag) core.info(`Next tag will be: ${nextTag}`);
 
-	const notes = await generateNotes(octokit, config.owner, config.repo, {
+	const notes = await generateNotesWithErrorHandling(octokit, config.owner, config.repo, {
 		tagName: nextTag || config.baseBranch,
 		target: config.baseBranch,
 		previousTagName: currentTag?.raw || undefined,
 		configuration_file_path: config.releaseCfgPath,
-	}).catch((err) => {
-		core.warning(
-			`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`,
-		);
-		return "";
 	});
 
 	return { currentTag, nextTag, bumpLevel, notes };
