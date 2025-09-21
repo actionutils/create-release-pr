@@ -32780,21 +32780,16 @@ function calcNext(prefix, currentTag, bumpLevel) {
 }
 function generateNotes(octokit_1, owner_1, repo_1, _a) {
     return __awaiter(this, arguments, void 0, function* (octokit, owner, repo, { tagName, target, previousTagName, configuration_file_path, }) {
-        const res = yield octokit.rest.repos.generateReleaseNotes({
-            owner,
-            repo,
-            tag_name: tagName,
-            target_commitish: target,
-            previous_tag_name: previousTagName,
-            configuration_file_path,
-        });
-        return res.data.body || "";
-    });
-}
-function generateNotesWithErrorHandling(octokit, owner, repo, params) {
-    return __awaiter(this, void 0, void 0, function* () {
         try {
-            return yield generateNotes(octokit, owner, repo, params);
+            const res = yield octokit.rest.repos.generateReleaseNotes({
+                owner,
+                repo,
+                tag_name: tagName,
+                target_commitish: target,
+                previous_tag_name: previousTagName,
+                configuration_file_path,
+            });
+            return res.data.body || "";
         }
         catch (err) {
             core.warning(`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`);
@@ -33126,7 +33121,7 @@ function handleMergedReleasePR(octokit, config, relPR) {
         const nextTag = calcNext(config.tagPrefix, currentTag, bumpLevel);
         core.info(`Release required for: ${nextTag}`);
         // Generate release notes for the merged PR
-        const notes = yield generateNotesWithErrorHandling(octokit, config.owner, config.repo, {
+        const notes = yield generateNotes(octokit, config.owner, config.repo, {
             tagName: nextTag,
             target: config.baseBranch,
             previousTagName: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || undefined,
@@ -33153,7 +33148,7 @@ function createNewReleasePR(octokit, config, currentTag) {
         const bumpLevel = "unknown";
         const nextTag = "";
         core.info("Release branch ensured, creating PR with unknown bump level");
-        const notes = yield generateNotesWithErrorHandling(octokit, config.owner, config.repo, {
+        const notes = yield generateNotes(octokit, config.owner, config.repo, {
             tagName: config.baseBranch,
             target: config.baseBranch,
             previousTagName: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || undefined,
@@ -33205,7 +33200,7 @@ function getReleaseInfo(octokit, config, labels) {
             : calcNext(config.tagPrefix, currentTag, bumpLevel);
         if (nextTag)
             core.info(`Next tag will be: ${nextTag}`);
-        const notes = yield generateNotesWithErrorHandling(octokit, config.owner, config.repo, {
+        const notes = yield generateNotes(octokit, config.owner, config.repo, {
             tagName: nextTag || config.baseBranch,
             target: config.baseBranch,
             previousTagName: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || undefined,
