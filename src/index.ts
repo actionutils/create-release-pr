@@ -555,7 +555,7 @@ async function updateReleasePR(
 	});
 
 	core.info("PR updated successfully");
-	setReleaseOutputs("pr_changed", {
+	setReleaseOutputs("release_pr_open", {
 		prNumber: String(pr.number),
 		prUrl: pr.html_url,
 		prBranch: config.releaseBranch,
@@ -722,7 +722,7 @@ async function createNewReleasePR(
 		"release-pr",
 	);
 
-	setReleaseOutputs("pr_changed", {
+	setReleaseOutputs("release_pr_open", {
 		prNumber: String(created.number),
 		prUrl: created.html_url,
 		prBranch: config.releaseBranch,

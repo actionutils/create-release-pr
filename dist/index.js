@@ -33050,7 +33050,7 @@ function updateReleasePR(octokit, config, pr) {
             body,
         });
         core.info("PR updated successfully");
-        setReleaseOutputs("pr_changed", {
+        setReleaseOutputs("release_pr_open", {
             prNumber: String(pr.number),
             prUrl: pr.html_url,
             prBranch: config.releaseBranch,
@@ -33178,7 +33178,7 @@ function createNewReleasePR(octokit, config, currentTag) {
         });
         core.info(`Created release PR #${created.number}`);
         yield ensureAndAddLabel(octokit, config.owner, config.repo, created.number, "release-pr");
-        setReleaseOutputs("pr_changed", {
+        setReleaseOutputs("release_pr_open", {
             prNumber: String(created.number),
             prUrl: created.html_url,
             prBranch: config.releaseBranch,

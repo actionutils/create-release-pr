@@ -38,13 +38,13 @@ runs:
   main: dist/index.js
 outputs:
   state:
-    description: release_required | pr_changed | noop
+    description: release_required | release_pr_open | noop
   pr_number:
     description: Release PR number
   pr_url:
     description: Release PR URL
   pr_branch:
-    description: Release branch name (only for pr_changed state)
+    description: Release branch name (only for release_pr_open state)
   current_tag:
     description: Latest parsed tag
   next_tag:
