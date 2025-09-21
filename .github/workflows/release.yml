@@ -48,12 +48,7 @@ jobs:
           ref: ${{ fromJSON(needs.release-pr.outputs.release_pr).pr_branch }}
       - uses: aquaproj/aqua-installer@ea518c135a02fc11ff8024364510c181a5c6b342 # v4.0.3
         with:
-          aqua_version: v2.43.1
-      - name: rebase
-        run: |
-          git fetch origin main
-          git rebase origin/main
-          git push --force-with-lease
+          aqua_version: v2.55.0
       - uses: actions/dependency-review-action@v4
         id: dependency-review
         with:
@@ -62,6 +57,7 @@ jobs:
       - name: Comment dependency review result
         env:
           BODY: ${{ steps.dependency-review.outputs.comment-content }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           github-comment post --pr ${{ fromJSON(needs.release-pr.outputs.release_pr).pr_number }} \
             -k dep-review --template "${BODY}"
