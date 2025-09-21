@@ -188,30 +188,16 @@ async function generateNotes(
 		configuration_file_path?: string;
 	},
 ): Promise<string> {
-	const res = await octokit.rest.repos.generateReleaseNotes({
-		owner,
-		repo,
-		tag_name: tagName,
-		target_commitish: target,
-		previous_tag_name: previousTagName,
-		configuration_file_path,
-	});
-	return res.data.body || "";
-}
-
-async function generateNotesWithErrorHandling(
-	octokit: ReturnType<typeof getOctokit>,
-	owner: string,
-	repo: string,
-	params: {
-		tagName: string;
-		target: string;
-		previousTagName?: string;
-		configuration_file_path?: string;
-	},
-): Promise<string> {
 	try {
-		return await generateNotes(octokit, owner, repo, params);
+		const res = await octokit.rest.repos.generateReleaseNotes({
+			owner,
+			repo,
+			tag_name: tagName,
+			target_commitish: target,
+			previous_tag_name: previousTagName,
+			configuration_file_path,
+		});
+		return res.data.body || "";
 	} catch (err) {
 		core.warning(
 			`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`,
@@ -660,17 +646,12 @@ async function handleMergedReleasePR(
 	core.info(`Release required for: ${nextTag}`);
 
 	// Generate release notes for the merged PR
-	const notes = await generateNotesWithErrorHandling(
-		octokit,
-		config.owner,
-		config.repo,
-		{
-			tagName: nextTag,
-			target: config.baseBranch,
-			previousTagName: currentTag?.raw || undefined,
-			configuration_file_path: config.releaseCfgPath,
-		},
-	);
+	const notes = await generateNotes(octokit, config.owner, config.repo, {
+		tagName: nextTag,
+		target: config.baseBranch,
+		previousTagName: currentTag?.raw || undefined,
+		configuration_file_path: config.releaseCfgPath,
+	});
 
 	setReleaseOutputs("release_required", {
 		prNumber: String(relPR.number),
@@ -699,17 +680,12 @@ async function createNewReleasePR(
 	const nextTag = "";
 	core.info("Release branch ensured, creating PR with unknown bump level");
 
-	const notes = await generateNotesWithErrorHandling(
-		octokit,
-		config.owner,
-		config.repo,
-		{
-			tagName: config.baseBranch,
-			target: config.baseBranch,
-			previousTagName: currentTag?.raw || undefined,
-			configuration_file_path: config.releaseCfgPath,
-		},
-	);
+	const notes = await generateNotes(octokit, config.owner, config.repo, {
+		tagName: config.baseBranch,
+		target: config.baseBranch,
+		previousTagName: currentTag?.raw || undefined,
+		configuration_file_path: config.releaseCfgPath,
+	});
 
 	const { title, body } = buildPRText({
 		owner: config.owner,
@@ -774,17 +750,12 @@ async function getReleaseInfo(
 			: calcNext(config.tagPrefix, currentTag, bumpLevel);
 	if (nextTag) core.info(`Next tag will be: ${nextTag}`);
 
-	const notes = await generateNotesWithErrorHandling(
-		octokit,
-		config.owner,
-		config.repo,
-		{
-			tagName: nextTag || config.baseBranch,
-			target: config.baseBranch,
-			previousTagName: currentTag?.raw || undefined,
-			configuration_file_path: config.releaseCfgPath,
-		},
-	);
+	const notes = await generateNotes(octokit, config.owner, config.repo, {
+		tagName: nextTag || config.baseBranch,
+		target: config.baseBranch,
+		previousTagName: currentTag?.raw || undefined,
+		configuration_file_path: config.releaseCfgPath,
+	});
 
 	return { currentTag, nextTag, bumpLevel, notes };
 }
