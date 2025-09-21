@@ -49,11 +49,6 @@ jobs:
       - uses: aquaproj/aqua-installer@ea518c135a02fc11ff8024364510c181a5c6b342 # v4.0.3
         with:
           aqua_version: v2.43.1
-      - name: rebase
-        run: |
-          git fetch origin main
-          git rebase origin/main
-          git push --force-with-lease
       - uses: actions/dependency-review-action@v4
         id: dependency-review
         with:
