@@ -74,11 +74,11 @@
 ## Outputs
 - `state`: One of:
   - `release_required` — release PR was (already) merged and a release should occur (by other automation). No open release PR exists now.
-  - `pr_changed` — a release PR was created or updated in this run.
+  - `release_pr_open` — a release PR was created or updated in this run.
   - `pr_status_check` — status check was set on the release PR (no other changes made).
-- `pr_number`: Release PR number when `state=pr_changed` or `pr_status_check`, otherwise empty.
-- `pr_url`: Release PR URL when `state=pr_changed` or `pr_status_check`, otherwise empty.
-- `pr_branch`: Release branch name when `state=pr_changed`, otherwise empty.
+- `pr_number`: Release PR number when `state=release_pr_open` or `pr_status_check`, otherwise empty.
+- `pr_url`: Release PR URL when `state=release_pr_open` or `pr_status_check`, otherwise empty.
+- `pr_branch`: Release branch name when `state=release_pr_open`, otherwise empty.
 - `current_tag`: Latest parsed tag (empty if none).
 - `next_tag`: When determinable; empty if unknown.
 - `bump_level`: `major|minor|patch|unknown` — label-derived when available.
