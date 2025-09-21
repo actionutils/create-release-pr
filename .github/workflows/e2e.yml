@@ -102,7 +102,7 @@ jobs:
             --field target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Checkout test repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v5.0.0
         with:
           repository: actionutils/test-create-release-pr
           token: ${{ secrets.TEST_CREATE_RELEASE_PR_REPO_GITHUB_TOKEN }}
