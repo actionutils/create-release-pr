@@ -18,7 +18,7 @@ jobs:
       statuses: write
     runs-on: ubuntu-latest
     outputs:
-      state: ${{ steps.release-pr.outputs.state }}
+      release_pr: ${{ toJSON(steps.release-pr.outputs) }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
@@ -26,14 +26,49 @@ jobs:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@v5
       - name: Create or update release PR
         id: release-pr
         uses: ./.
 
+  update-release-pr:
+    needs: [release-pr]
+    if: fromJSON(needs.release-pr.outputs.release_pr).state == 'release_pr_open'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ fromJSON(needs.release-pr.outputs.release_pr).pr_branch }}
+      - uses: aquaproj/aqua-installer@ea518c135a02fc11ff8024364510c181a5c6b342 # v4.0.3
+        with:
+          aqua_version: v2.43.1
+      - name: rebase
+        run: |
+          git fetch origin main
+          git rebase origin/main
+          git push --force-with-lease
+      - uses: actions/dependency-review-action@v4
+        id: dependency-review
+        with:
+          base-ref: ${{ fromJSON(needs.release-pr.outputs.release_pr).current_tag }}
+          head-ref: main
+      - name: Comment dependency review result
+        env:
+          BODY: ${{ steps.dependency-review.outputs.comment-content }}
+        run: |
+          github-comment post --pr ${{ fromJSON(needs.release-pr.outputs.release_pr).pr_number }} \
+            -k dep-review --template "${BODY}"
+
   verify-releaser:
     needs: [release-pr]
-    if: needs.release-pr.outputs.state == 'release_required'
+    if: fromJSON(needs.release-pr.outputs.release_pr).state == 'release_required'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -49,7 +84,7 @@ jobs:
 
   release:
     needs: [verify-releaser, release-pr]
-    if: needs.release-pr.outputs.state == 'release_required'
+    if: fromJSON(needs.release-pr.outputs.release_pr).state == 'release_required'
     concurrency:
       group: "release"
       cancel-in-progress: false
