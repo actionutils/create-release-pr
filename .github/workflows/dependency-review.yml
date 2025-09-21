@@ -27,6 +27,6 @@ jobs:
         uses: actions/dependency-review-action@595b5aeba73380359d98a5e087f648dbb0edce1b # v4.7.3
         id: dep_review
       - env:
-          VULNERABLE_CHANGES: ${{ steps.dep_review.outputs.vulnerable-changes }}
+          DEPENDENCY_CHANGES: ${{ steps.dep_review.outputs.dependency-changes }}
         run: |
-          echo "${VULNERABLE_CHANGES}" | jq .
+          echo "${DEPENDENCY_CHANGES}" | jq .
