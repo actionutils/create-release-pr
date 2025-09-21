@@ -43,7 +43,7 @@ jobs:
         with:
           egress-policy: audit
       - name: Verify Trusted Tag Releaser
-        uses: actionutils/trusted-tag-verifier@v0
+        uses: actionutils/trusted-tag-verifier@v0.5.0
         with:
           verify: 'actionutils/trusted-tag-releaser@v2'
 
