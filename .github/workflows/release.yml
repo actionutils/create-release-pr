@@ -60,7 +60,9 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           github-comment post --pr ${{ fromJSON(needs.release-pr.outputs.release_pr).pr_number }} \
-            -k dep-review --template "${BODY}"
+            -k dep-review \
+            --update-condition 'Comment.HasMeta && Comment.Meta.TemplateKey == "dep-review"' \
+            --template "${BODY}"
 
   verify-releaser:
     needs: [release-pr]
