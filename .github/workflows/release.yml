@@ -48,7 +48,7 @@ jobs:
           ref: ${{ fromJSON(needs.release-pr.outputs.release_pr).pr_branch }}
       - uses: aquaproj/aqua-installer@ea518c135a02fc11ff8024364510c181a5c6b342 # v4.0.3
         with:
-          aqua_version: v2.43.1
+          aqua_version: v2.55.0
       - uses: actions/dependency-review-action@v4
         id: dependency-review
         with:
