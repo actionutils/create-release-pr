@@ -21,6 +21,7 @@ interface Config {
 	labelPatch: string;
 	tagPrefix: string;
 	releaseCfgPath?: string;
+	skipReleaseNotes: boolean;
 }
 
 interface ReleaseInfo {
@@ -52,6 +53,7 @@ function getConfig(): Config {
 		labelPatch: core.getInput("label-patch") || "bump:patch",
 		tagPrefix: core.getInput("tag-prefix") || "v",
 		releaseCfgPath: core.getInput("configuration_file_path") || undefined,
+		skipReleaseNotes: core.getInput("skip-release-notes") === "true",
 	};
 }
 
@@ -358,6 +360,7 @@ function buildPRText({
 	currentTag,
 	nextTag,
 	notes,
+	skipReleaseNotes,
 }: {
 	owner: string;
 	repo: string;
@@ -369,6 +372,7 @@ function buildPRText({
 	currentTag: string | null;
 	nextTag: string;
 	notes: string;
+	skipReleaseNotes: boolean;
 }) {
 	const known = !!nextTag;
 	const title = known ? `Release for ${nextTag}` : "Release for new version";
@@ -397,27 +401,29 @@ function buildPRText({
 	parts.push("");
 	parts.push("</details>");
 	parts.push("");
-	if (notes) {
-		if (nextTag) {
-			parts.push(`# Release ${nextTag}`);
-			parts.push("");
+	if (!skipReleaseNotes) {
+		if (notes) {
+			if (nextTag) {
+				parts.push(`# Release ${nextTag}`);
+				parts.push("");
+			}
+			// Replace the Full Changelog link to use baseBranch instead of nextTag
+			let modifiedNotes = notes;
+			if (currentTag && nextTag) {
+				// Simple regex to replace ${currentTag}...${nextTag} with ${currentTag}...${baseBranch}
+				const fullChangelogPattern = new RegExp(
+					`(\\*\\*Full Changelog\\*\\*: .*\\/compare\\/)${currentTag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.\\.\\.${nextTag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+					"g",
+				);
+				modifiedNotes = notes.replace(
+					fullChangelogPattern,
+					`$1${currentTag}...${baseBranch}`,
+				);
+			}
+			parts.push(modifiedNotes);
+		} else {
+			parts.push("_Release notes will be generated here_");
 		}
-		// Replace the Full Changelog link to use baseBranch instead of nextTag
-		let modifiedNotes = notes;
-		if (currentTag && nextTag) {
-			// Simple regex to replace ${currentTag}...${nextTag} with ${currentTag}...${baseBranch}
-			const fullChangelogPattern = new RegExp(
-				`(\\*\\*Full Changelog\\*\\*: .*\\/compare\\/)${currentTag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.\\.\\.${nextTag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
-				"g",
-			);
-			modifiedNotes = notes.replace(
-				fullChangelogPattern,
-				`$1${currentTag}...${baseBranch}`,
-			);
-		}
-		parts.push(modifiedNotes);
-	} else {
-		parts.push("_Release notes will be generated here_");
 	}
 
 	// Add workflow update metadata at the end, right-aligned
@@ -543,6 +549,7 @@ async function updateReleasePR(
 		currentTag: releaseInfo.currentTag?.raw || null,
 		nextTag: releaseInfo.nextTag,
 		notes: releaseInfo.notes,
+		skipReleaseNotes: config.skipReleaseNotes,
 	});
 
 	core.info(`Updating PR #${pr.number} with new title and body`);
@@ -698,6 +705,7 @@ async function createNewReleasePR(
 		currentTag: currentTag?.raw || null,
 		nextTag,
 		notes,
+		skipReleaseNotes: config.skipReleaseNotes,
 	});
 
 	core.info(
