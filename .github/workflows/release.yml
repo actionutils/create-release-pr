@@ -59,6 +59,7 @@ jobs:
           BODY: ${{ steps.dependency-review.outputs.comment-content }}
           DEP_JSON: ${{ steps.dependency-review.outputs.dependency-changes }}
           GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ fromJSON(needs.release-pr.outputs.release_pr).pr_number }}
         run: |
           FORMATTED_JSON=$(echo "${DEP_JSON}" | jq .)
           FULL_BODY="${BODY}
@@ -69,10 +70,11 @@ jobs:
           <pre>${FORMATTED_JSON}</pre>
           </details>"
 
-          github-comment post --pr ${{ fromJSON(needs.release-pr.outputs.release_pr).pr_number }} \
+          github-comment post --pr "${PR_NUMBER}" \
             -k dep-review \
             --update-condition 'Comment.HasMeta && Comment.Meta.TemplateKey == "dep-review"' \
-            --template "${FULL_BODY}"
+            --var "content:${FULL_BODY}" \
+            --template "{{ .Vars.content | AvoidHTMLEscape }}"
 
   verify-releaser:
     needs: [release-pr]
