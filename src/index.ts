@@ -718,7 +718,7 @@ async function createNewReleasePR(
 		head: config.releaseBranch,
 		base: config.baseBranch,
 		body,
-		draft: false,
+		draft: true,
 	});
 
 	core.info(`Created release PR #${created.number}`);
