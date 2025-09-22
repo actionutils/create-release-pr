@@ -7,13 +7,17 @@
 #
 # Source repository: https://github.com/actions/dependency-review-action
 name: 'Dependency Review'
-on: [pull_request]
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
 
 jobs:
   dependency-review:
+    # Skip running on draft PRs
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     steps:
       - name: Harden the runner (Audit all outbound calls)

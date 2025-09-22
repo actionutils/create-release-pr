@@ -4,12 +4,15 @@ on:
   push:
     branches: [ main ]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
 
 jobs:
   build-and-lint:
+    # Skip running on draft PRs
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
 
     steps:
