@@ -33179,7 +33179,7 @@ function createNewReleasePR(octokit, config, currentTag) {
             head: config.releaseBranch,
             base: config.baseBranch,
             body,
-            draft: false,
+            draft: true,
         });
         core.info(`Created release PR #${created.number}`);
         yield ensureAndAddLabel(octokit, config.owner, config.repo, created.number, "release-pr");
