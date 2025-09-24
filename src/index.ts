@@ -483,7 +483,10 @@ async function handlePullRequestEvent(
 
 	// Get current tag to determine the release branch name
 	const currentTag = await latestTag(octokit, config.owner, config.repo);
-	const releaseBranch = getReleaseBranchName(config.releaseBranchPrefix, currentTag?.raw || null);
+	const releaseBranch = getReleaseBranchName(
+		config.releaseBranchPrefix,
+		currentTag?.raw || null,
+	);
 
 	// Check if this is the release PR itself
 	if (pr.head.ref === releaseBranch) {
@@ -546,7 +549,12 @@ async function updateReleasePR(
 ): Promise<void> {
 	core.info(`Processing release PR #${pr.number}`);
 
-	const releaseInfo = await getReleaseInfo(octokit, config, pr.labels || [], currentTag);
+	const releaseInfo = await getReleaseInfo(
+		octokit,
+		config,
+		pr.labels || [],
+		currentTag,
+	);
 
 	// Always set commit status
 	await setCommitStatusForBumpLabel(
@@ -603,10 +611,18 @@ async function handlePushEvent(
 	// Get current tag to determine the release branch name
 	const currentTag = await latestTag(octokit, config.owner, config.repo);
 	core.info(`Current tag: ${currentTag?.raw || "(none)"}`);
-	const releaseBranch = getReleaseBranchName(config.releaseBranchPrefix, currentTag?.raw || null);
+	const releaseBranch = getReleaseBranchName(
+		config.releaseBranchPrefix,
+		currentTag?.raw || null,
+	);
 
 	// Check if this push is from a merged release PR
-	const releasePR = await findMergedReleasePR(octokit, config, headSha, releaseBranch);
+	const releasePR = await findMergedReleasePR(
+		octokit,
+		config,
+		headSha,
+		releaseBranch,
+	);
 	if (releasePR) {
 		await handleMergedReleasePR(octokit, config, releasePR, currentTag);
 		return;
