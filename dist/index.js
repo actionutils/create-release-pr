@@ -32816,12 +32816,25 @@ function findOpenReleasePR(octokit_1, _a) {
         return Array.isArray(prs) && prs.length ? prs[0] : null;
     });
 }
+// Helper to run an async operation with status tracking
+function withStatusTracking(octokit, owner, repo, releaseBranch, operation, fn, sha) {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield setReleaseBranchUpdateStatus(octokit, owner, repo, releaseBranch, "pending", `${operation}...`, sha);
+        try {
+            const result = yield fn();
+            yield setReleaseBranchUpdateStatus(octokit, owner, repo, releaseBranch, "success", `${operation} completed successfully`, sha);
+            return result;
+        }
+        catch (err) {
+            yield setReleaseBranchUpdateStatus(octokit, owner, repo, releaseBranch, "failure", `${operation} failed: ${err instanceof Error ? err.message : String(err)}`, sha);
+            throw err;
+        }
+    });
+}
 function ensureReleaseBranch(octokit_1, owner_1, repo_1, _a) {
     return __awaiter(this, arguments, void 0, function* (octokit, owner, repo, { baseBranch, releaseBranch }) {
         var _b;
         core.debug(`Ensuring release branch: ${releaseBranch}`);
-        // Set initial status check
-        yield setReleaseBranchUpdateStatus(octokit, owner, repo, releaseBranch, "pending", "Starting release branch update...");
         try {
             const { data: ref } = yield octokit.rest.git.getRef({
                 owner,
@@ -32830,15 +32843,13 @@ function ensureReleaseBranch(octokit_1, owner_1, repo_1, _a) {
             });
             if (ref && ((_b = ref.object) === null || _b === void 0 ? void 0 : _b.sha)) {
                 core.debug(`Release branch exists at SHA: ${ref.object.sha}`);
-                // Update status to in-progress
-                yield setReleaseBranchUpdateStatus(octokit, owner, repo, releaseBranch, "pending", "Updating existing release branch...", ref.object.sha);
                 return; // exists
             }
         }
         catch (_c) {
             core.debug("Release branch does not exist, creating...");
         }
-        try {
+        return withStatusTracking(octokit, owner, repo, releaseBranch, "Creating release branch", () => __awaiter(this, void 0, void 0, function* () {
             const { data: baseRef } = yield octokit.rest.git.getRef({
                 owner,
                 repo,
@@ -32866,13 +32877,26 @@ function ensureReleaseBranch(octokit_1, owner_1, repo_1, _a) {
                 sha: newSha,
             });
             core.info(`Created release branch ${releaseBranch} at SHA: ${newSha}`);
-            // Mark as success
-            yield setReleaseBranchUpdateStatus(octokit, owner, repo, releaseBranch, "success", "Release branch created successfully", newSha);
+            return newSha;
+        }));
+    });
+}
+// Unified status helper for setting commit statuses
+function setCommitStatus(octokit, owner, repo, sha, context, state, description) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            yield octokit.rest.repos.createCommitStatus({
+                owner,
+                repo,
+                sha,
+                state,
+                description: description.substring(0, 140), // GitHub limits to 140 chars
+                context,
+            });
+            core.info(`Status check set [${context}]: ${state} - ${description}`);
         }
         catch (err) {
-            // Mark as failure
-            yield setReleaseBranchUpdateStatus(octokit, owner, repo, releaseBranch, "failure", `Failed to create release branch: ${err instanceof Error ? err.message : String(err)}`);
-            throw err;
+            core.warning(`Failed to set commit status [${context}]: ${err instanceof Error ? err.message : String(err)}`);
         }
     });
 }
@@ -32883,55 +32907,29 @@ function setCommitStatusForBumpLabel(octokit, config, sha, bumpLevel) {
         const description = hasValidBumpLabel
             ? `Bump level: ${bumpLevel}`
             : `Missing bump label. Add ${config.labelMajor}, ${config.labelMinor}, or ${config.labelPatch}`;
-        try {
-            yield octokit.rest.repos.createCommitStatus({
-                owner: config.owner,
-                repo: config.repo,
-                sha,
-                state: state,
-                description,
-                context: "create-release-pr/bump-label",
-            });
-            core.info(`Status check set: ${state} - ${description}`);
-        }
-        catch (err) {
-            core.warning(`Failed to set commit status: ${err instanceof Error ? err.message : String(err)}`);
-        }
+        yield setCommitStatus(octokit, config.owner, config.repo, sha, "create-release-pr/bump-label", state, description);
     });
 }
 function setReleaseBranchUpdateStatus(octokit, owner, repo, releaseBranch, state, description, sha) {
     return __awaiter(this, void 0, void 0, function* () {
-        try {
-            // If SHA not provided, try to get it from the branch
-            let commitSha = sha;
-            if (!commitSha) {
-                try {
-                    const { data: ref } = yield octokit.rest.git.getRef({
-                        owner,
-                        repo,
-                        ref: `heads/${releaseBranch}`,
-                    });
-                    commitSha = ref.object.sha;
-                }
-                catch (_a) {
-                    // Branch might not exist yet, skip status update
-                    core.debug(`Cannot set status - branch ${releaseBranch} does not exist yet`);
-                    return;
-                }
+        // If SHA not provided, try to get it from the branch
+        let commitSha = sha;
+        if (!commitSha) {
+            try {
+                const { data: ref } = yield octokit.rest.git.getRef({
+                    owner,
+                    repo,
+                    ref: `heads/${releaseBranch}`,
+                });
+                commitSha = ref.object.sha;
             }
-            yield octokit.rest.repos.createCommitStatus({
-                owner,
-                repo,
-                sha: commitSha,
-                state,
-                description: description.substring(0, 140), // GitHub limits to 140 chars
-                context: "create-release-pr/branch-update",
-            });
-            core.info(`Branch update status set: ${state} - ${description}`);
+            catch (_a) {
+                // Branch might not exist yet, skip status update
+                core.debug(`Cannot set status - branch ${releaseBranch} does not exist yet`);
+                return;
+            }
         }
-        catch (err) {
-            core.warning(`Failed to set branch update status: ${err instanceof Error ? err.message : String(err)}`);
-        }
+        yield setCommitStatus(octokit, owner, repo, commitSha, "create-release-pr/branch-update", state, description);
     });
 }
 function ensureAndAddLabel(octokit, owner, repo, prNumber, labelName) {
@@ -33084,11 +33082,9 @@ function handlePullRequestEvent(octokit, config) {
 }
 function updateReleasePR(octokit, config, pr, releaseBranch, currentTag) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b;
         core.info(`Processing release PR #${pr.number}`);
-        // Set initial status
-        yield setReleaseBranchUpdateStatus(octokit, config.owner, config.repo, releaseBranch, "pending", `Updating release PR #${pr.number}...`, pr.head.sha);
-        try {
+        yield withStatusTracking(octokit, config.owner, config.repo, releaseBranch, `Updating release PR #${pr.number}`, () => __awaiter(this, void 0, void 0, function* () {
+            var _a, _b;
             const releaseInfo = yield getReleaseInfo(octokit, config, pr.labels || [], currentTag);
             // Always set commit status
             yield setCommitStatusForBumpLabel(octokit, config, pr.head.sha, releaseInfo.bumpLevel);
@@ -33114,8 +33110,6 @@ function updateReleasePR(octokit, config, pr, releaseBranch, currentTag) {
                 body,
             });
             core.info("PR updated successfully");
-            // Set success status
-            yield setReleaseBranchUpdateStatus(octokit, config.owner, config.repo, releaseBranch, "success", `Release PR #${pr.number} updated successfully`, pr.head.sha);
             setReleaseOutputs("release_pr_open", {
                 prNumber: String(pr.number),
                 prUrl: pr.html_url,
@@ -33125,12 +33119,7 @@ function updateReleasePR(octokit, config, pr, releaseBranch, currentTag) {
                 bumpLevel: releaseInfo.bumpLevel,
                 notes: releaseInfo.notes,
             });
-        }
-        catch (err) {
-            // Set failure status
-            yield setReleaseBranchUpdateStatus(octokit, config.owner, config.repo, releaseBranch, "failure", `Failed to update PR #${pr.number}: ${err instanceof Error ? err.message : String(err)}`, pr.head.sha);
-            throw err;
-        }
+        }), pr.head.sha);
     });
 }
 function handlePushEvent(octokit, config) {
@@ -33214,35 +33203,33 @@ function handleMergedReleasePR(octokit, config, relPR, currentTag) {
 function createNewReleasePR(octokit, config, currentTag, releaseBranch) {
     return __awaiter(this, void 0, void 0, function* () {
         core.info("No existing release PR found - creating new one");
-        // Set initial status
-        yield setReleaseBranchUpdateStatus(octokit, config.owner, config.repo, releaseBranch, "pending", "Creating new release PR...");
-        try {
-            yield ensureReleaseBranch(octokit, config.owner, config.repo, {
-                baseBranch: config.baseBranch,
-                releaseBranch: releaseBranch,
-            });
-            const bumpLevel = "unknown";
-            const nextTag = "";
-            core.info("Release branch ensured, creating PR with unknown bump level");
-            const notes = yield generateNotes(octokit, config.owner, config.repo, {
-                tagName: config.baseBranch,
-                target: config.baseBranch,
-                previousTagName: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || undefined,
-                configuration_file_path: config.releaseCfgPath,
-            });
-            const { title, body } = buildPRText({
-                owner: config.owner,
-                repo: config.repo,
-                baseBranch: config.baseBranch,
-                releaseBranch: releaseBranch,
-                labelMajor: config.labelMajor,
-                labelMinor: config.labelMinor,
-                labelPatch: config.labelPatch,
-                currentTag: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || null,
-                nextTag,
-                notes,
-                skipReleaseNotes: config.skipReleaseNotes,
-            });
+        yield ensureReleaseBranch(octokit, config.owner, config.repo, {
+            baseBranch: config.baseBranch,
+            releaseBranch: releaseBranch,
+        });
+        const bumpLevel = "unknown";
+        const nextTag = "";
+        core.info("Release branch ensured, creating PR with unknown bump level");
+        const notes = yield generateNotes(octokit, config.owner, config.repo, {
+            tagName: config.baseBranch,
+            target: config.baseBranch,
+            previousTagName: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || undefined,
+            configuration_file_path: config.releaseCfgPath,
+        });
+        const { title, body } = buildPRText({
+            owner: config.owner,
+            repo: config.repo,
+            baseBranch: config.baseBranch,
+            releaseBranch: releaseBranch,
+            labelMajor: config.labelMajor,
+            labelMinor: config.labelMinor,
+            labelPatch: config.labelPatch,
+            currentTag: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || null,
+            nextTag,
+            notes,
+            skipReleaseNotes: config.skipReleaseNotes,
+        });
+        yield withStatusTracking(octokit, config.owner, config.repo, releaseBranch, "Creating release PR", () => __awaiter(this, void 0, void 0, function* () {
             core.info(`Creating release PR from ${releaseBranch} to ${config.baseBranch}`);
             const { data: created } = yield octokit.rest.pulls.create({
                 owner: config.owner,
@@ -33255,14 +33242,6 @@ function createNewReleasePR(octokit, config, currentTag, releaseBranch) {
             });
             core.info(`Created release PR #${created.number}`);
             yield ensureAndAddLabel(octokit, config.owner, config.repo, created.number, "release-pr");
-            // Get the SHA of the created PR
-            const { data: prData } = yield octokit.rest.pulls.get({
-                owner: config.owner,
-                repo: config.repo,
-                pull_number: created.number,
-            });
-            // Set success status
-            yield setReleaseBranchUpdateStatus(octokit, config.owner, config.repo, releaseBranch, "success", `Release PR #${created.number} created successfully`, prData.head.sha);
             setReleaseOutputs("release_pr_open", {
                 prNumber: String(created.number),
                 prUrl: created.html_url,
@@ -33272,12 +33251,14 @@ function createNewReleasePR(octokit, config, currentTag, releaseBranch) {
                 bumpLevel,
                 notes,
             });
-        }
-        catch (err) {
-            // Set failure status
-            yield setReleaseBranchUpdateStatus(octokit, config.owner, config.repo, releaseBranch, "failure", `Failed to create release PR: ${err instanceof Error ? err.message : String(err)}`);
-            throw err;
-        }
+            // Return the PR head SHA for status update
+            const { data: prData } = yield octokit.rest.pulls.get({
+                owner: config.owner,
+                repo: config.repo,
+                pull_number: created.number,
+            });
+            return prData.head.sha;
+        }));
     });
 }
 function getReleaseInfo(octokit, config, labels, currentTag) {
