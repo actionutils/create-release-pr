@@ -32685,7 +32685,7 @@ function getConfig() {
         owner,
         repo,
         baseBranch: core.getInput("base-branch") || "main",
-        releaseBranchPrefix: core.getInput("release-branch") || "release-pr",
+        releaseBranchPrefix: core.getInput("release-branch-prefix") || "release-pr",
         labelMajor: core.getInput("label-major") || "bump:major",
         labelMinor: core.getInput("label-minor") || "bump:minor",
         labelPatch: core.getInput("label-patch") || "bump:patch",
