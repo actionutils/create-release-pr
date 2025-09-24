@@ -179,9 +179,9 @@ function getReleaseBranchName(
 	currentTag: string | null,
 ): string {
 	if (currentTag) {
-		return `${prefix}/from-${currentTag}`;
+		return `${prefix}-from-${currentTag}`;
 	}
-	return `${prefix}/from-initial`;
+	return `${prefix}-from-initial`;
 }
 
 async function generateNotes(

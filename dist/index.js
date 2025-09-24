@@ -32781,9 +32781,9 @@ function calcNext(prefix, currentTag, bumpLevel) {
 }
 function getReleaseBranchName(prefix, currentTag) {
     if (currentTag) {
-        return `${prefix}/from-${currentTag}`;
+        return `${prefix}-from-${currentTag}`;
     }
-    return `${prefix}/from-initial`;
+    return `${prefix}-from-initial`;
 }
 function generateNotes(octokit_1, owner_1, repo_1, _a) {
     return __awaiter(this, arguments, void 0, function* (octokit, owner, repo, { tagName, target, previousTagName, configuration_file_path, }) {
