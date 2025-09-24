@@ -33001,12 +33001,12 @@ function handlePullRequestEvent(octokit, config) {
         if (pr.head.ref === releaseBranch) {
             if (action === "labeled" || action === "unlabeled") {
                 core.info("Label change on release PR - updating");
-                yield updateReleasePR(octokit, config, pr, releaseBranch);
+                yield updateReleasePR(octokit, config, pr, releaseBranch, currentTag);
             }
             else {
                 // For opened/synchronize/reopened, update PR (which also sets status check)
                 core.info("Release PR opened/updated - updating");
-                yield updateReleasePR(octokit, config, pr, releaseBranch);
+                yield updateReleasePR(octokit, config, pr, releaseBranch, currentTag);
             }
             return;
         }
@@ -33022,7 +33022,7 @@ function handlePullRequestEvent(octokit, config) {
             });
             if (releasePR && releasePR.number) {
                 core.info(`Found release PR #${releasePR.number} - updating with new release notes`);
-                yield updateReleasePR(octokit, config, releasePR, releaseBranch);
+                yield updateReleasePR(octokit, config, releasePR, releaseBranch, currentTag);
             }
             else {
                 core.info("No open release PR found - skipping");
@@ -33034,11 +33034,11 @@ function handlePullRequestEvent(octokit, config) {
         setOutputWithLog("state", "noop");
     });
 }
-function updateReleasePR(octokit, config, pr, releaseBranch) {
+function updateReleasePR(octokit, config, pr, releaseBranch, currentTag) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b;
         core.info(`Processing release PR #${pr.number}`);
-        const releaseInfo = yield getReleaseInfo(octokit, config, pr.labels || []);
+        const releaseInfo = yield getReleaseInfo(octokit, config, pr.labels || [], currentTag);
         // Always set commit status
         yield setCommitStatusForBumpLabel(octokit, config, pr.head.sha, releaseInfo.bumpLevel);
         const { title, body } = buildPRText({
@@ -33087,7 +33087,7 @@ function handlePushEvent(octokit, config) {
         // Check if this push is from a merged release PR
         const releasePR = yield findMergedReleasePR(octokit, config, headSha, releaseBranch);
         if (releasePR) {
-            yield handleMergedReleasePR(octokit, config, releasePR);
+            yield handleMergedReleasePR(octokit, config, releasePR, currentTag);
             return;
         }
         // Check for existing open release PR
@@ -33099,7 +33099,7 @@ function handlePushEvent(octokit, config) {
             releaseBranch: releaseBranch,
         }).catch(() => null);
         if (existing && existing.number) {
-            yield updateReleasePR(octokit, config, existing, releaseBranch);
+            yield updateReleasePR(octokit, config, existing, releaseBranch, currentTag);
         }
         else {
             yield createNewReleasePR(octokit, config, currentTag, releaseBranch);
@@ -33121,10 +33121,9 @@ function findMergedReleasePR(octokit, config, headSha, releaseBranch) {
         }
     });
 }
-function handleMergedReleasePR(octokit, config, relPR) {
+function handleMergedReleasePR(octokit, config, relPR, currentTag) {
     return __awaiter(this, void 0, void 0, function* () {
         core.info(`Found merged release PR: #${relPR.number}`);
-        const currentTag = yield latestTag(octokit, config.owner, config.repo);
         core.info(`Current tag: ${(currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || "(none)"}`);
         const bumpLevel = detectBumpFromConfig(relPR.labels || [], config);
         core.info(`Detected bump level: ${bumpLevel}`);
@@ -33205,9 +33204,8 @@ function createNewReleasePR(octokit, config, currentTag, releaseBranch) {
         });
     });
 }
-function getReleaseInfo(octokit, config, labels) {
+function getReleaseInfo(octokit, config, labels, currentTag) {
     return __awaiter(this, void 0, void 0, function* () {
-        const currentTag = yield latestTag(octokit, config.owner, config.repo);
         core.info(`Current tag: ${(currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || "(none)"}`);
         const bumpLevel = detectBumpFromConfig(labels, config);
         core.info(`Detected bump level: ${bumpLevel}`);

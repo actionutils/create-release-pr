@@ -489,11 +489,11 @@ async function handlePullRequestEvent(
 	if (pr.head.ref === releaseBranch) {
 		if (action === "labeled" || action === "unlabeled") {
 			core.info("Label change on release PR - updating");
-			await updateReleasePR(octokit, config, pr, releaseBranch);
+			await updateReleasePR(octokit, config, pr, releaseBranch, currentTag);
 		} else {
 			// For opened/synchronize/reopened, update PR (which also sets status check)
 			core.info("Release PR opened/updated - updating");
-			await updateReleasePR(octokit, config, pr, releaseBranch);
+			await updateReleasePR(octokit, config, pr, releaseBranch, currentTag);
 		}
 		return;
 	}
@@ -519,6 +519,7 @@ async function handlePullRequestEvent(
 				config,
 				releasePR as WebhookPullRequestEvent["pull_request"],
 				releaseBranch,
+				currentTag,
 			);
 		} else {
 			core.info("No open release PR found - skipping");
@@ -541,10 +542,11 @@ async function updateReleasePR(
 		labels?: Array<string | { name: string }>;
 	},
 	releaseBranch: string,
+	currentTag: semver.SemVer | null,
 ): Promise<void> {
 	core.info(`Processing release PR #${pr.number}`);
 
-	const releaseInfo = await getReleaseInfo(octokit, config, pr.labels || []);
+	const releaseInfo = await getReleaseInfo(octokit, config, pr.labels || [], currentTag);
 
 	// Always set commit status
 	await setCommitStatusForBumpLabel(
@@ -606,7 +608,7 @@ async function handlePushEvent(
 	// Check if this push is from a merged release PR
 	const releasePR = await findMergedReleasePR(octokit, config, headSha, releaseBranch);
 	if (releasePR) {
-		await handleMergedReleasePR(octokit, config, releasePR);
+		await handleMergedReleasePR(octokit, config, releasePR, currentTag);
 		return;
 	}
 
@@ -621,7 +623,7 @@ async function handlePushEvent(
 	}).catch(() => null);
 
 	if (existing && existing.number) {
-		await updateReleasePR(octokit, config, existing, releaseBranch);
+		await updateReleasePR(octokit, config, existing, releaseBranch, currentTag);
 	} else {
 		await createNewReleasePR(octokit, config, currentTag, releaseBranch);
 	}
@@ -652,10 +654,9 @@ async function handleMergedReleasePR(
 	octokit: ReturnType<typeof getOctokit>,
 	config: Config,
 	relPR: WebhookPullRequestEvent["pull_request"],
+	currentTag: semver.SemVer | null,
 ): Promise<void> {
 	core.info(`Found merged release PR: #${relPR.number}`);
-
-	const currentTag = await latestTag(octokit, config.owner, config.repo);
 	core.info(`Current tag: ${currentTag?.raw || "(none)"}`);
 
 	const bumpLevel = detectBumpFromConfig(relPR.labels || [], config);
@@ -766,8 +767,8 @@ async function getReleaseInfo(
 	octokit: ReturnType<typeof getOctokit>,
 	config: Config,
 	labels: Array<string | { name: string }>,
+	currentTag: semver.SemVer | null,
 ): Promise<ReleaseInfo> {
-	const currentTag = await latestTag(octokit, config.owner, config.repo);
 	core.info(`Current tag: ${currentTag?.raw || "(none)"}`);
 
 	const bumpLevel = detectBumpFromConfig(labels, config);
