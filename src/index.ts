@@ -344,6 +344,18 @@ async function ensureReleaseBranch(
 	);
 }
 
+// Helper to get workflow run URL
+function getWorkflowRunUrl(): string | undefined {
+	const runId = process.env.GITHUB_RUN_ID;
+	if (!runId) return undefined;
+
+	const serverUrl = process.env.GITHUB_SERVER_URL || "https://github.com";
+	const repository = process.env.GITHUB_REPOSITORY;
+	if (!repository) return undefined;
+
+	return `${serverUrl}/${repository}/actions/runs/${runId}`;
+}
+
 // Unified status helper for setting commit statuses
 async function setCommitStatus(
 	octokit: ReturnType<typeof getOctokit>,
@@ -353,6 +365,7 @@ async function setCommitStatus(
 	context: string,
 	state: "error" | "failure" | "pending" | "success",
 	description: string,
+	targetUrl?: string,
 ): Promise<void> {
 	try {
 		await octokit.rest.repos.createCommitStatus({
@@ -362,6 +375,7 @@ async function setCommitStatus(
 			state,
 			description: description.substring(0, 140), // GitHub limits to 140 chars
 			context,
+			target_url: targetUrl,
 		});
 		core.info(`Status check set [${context}]: ${state} - ${description}`);
 	} catch (err) {
@@ -391,6 +405,7 @@ async function setCommitStatusForBumpLabel(
 		"create-release-pr/bump-label",
 		state,
 		description,
+		getWorkflowRunUrl(),
 	);
 }
 
@@ -430,6 +445,7 @@ async function setReleaseBranchUpdateStatus(
 		"create-release-pr/branch-update",
 		state,
 		description,
+		getWorkflowRunUrl(),
 	);
 }
 
