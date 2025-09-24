@@ -7,9 +7,9 @@ inputs:
     required: false
     default: main
   release-branch:
-    description: Stable branch name for the release PR head
+    description: Branch name prefix for release PRs (will be suffixed with -from-<tag>)
     required: false
-    default: release/pr
+    default: release-pr
   label-major:
     description: Label that indicates a major bump
     required: false
