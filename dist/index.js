@@ -32816,6 +32816,21 @@ function findOpenReleasePR(octokit_1, _a) {
         return Array.isArray(prs) && prs.length ? prs[0] : null;
     });
 }
+// Helper to run an async operation with status tracking
+function withStatusTracking(octokit, owner, repo, releaseBranch, operation, fn, sha) {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield setReleaseBranchUpdateStatus(octokit, owner, repo, releaseBranch, "pending", `${operation}...`, sha);
+        try {
+            const result = yield fn();
+            yield setReleaseBranchUpdateStatus(octokit, owner, repo, releaseBranch, "success", `${operation} completed successfully`, sha);
+            return result;
+        }
+        catch (err) {
+            yield setReleaseBranchUpdateStatus(octokit, owner, repo, releaseBranch, "failure", `${operation} failed: ${err instanceof Error ? err.message : String(err)}`, sha);
+            throw err;
+        }
+    });
+}
 function ensureReleaseBranch(octokit_1, owner_1, repo_1, _a) {
     return __awaiter(this, arguments, void 0, function* (octokit, owner, repo, { baseBranch, releaseBranch }) {
         var _b;
@@ -32834,33 +32849,55 @@ function ensureReleaseBranch(octokit_1, owner_1, repo_1, _a) {
         catch (_c) {
             core.debug("Release branch does not exist, creating...");
         }
-        const { data: baseRef } = yield octokit.rest.git.getRef({
-            owner,
-            repo,
-            ref: `heads/${baseBranch}`,
-        });
-        const baseSha = baseRef.object.sha;
-        const { data: baseCommit } = yield octokit.rest.git.getCommit({
-            owner,
-            repo,
-            commit_sha: baseSha,
-        });
-        const treeSha = baseCommit.tree.sha;
-        const { data: newCommit } = yield octokit.rest.git.createCommit({
-            owner,
-            repo,
-            message: "chore(release): prepare release PR",
-            tree: treeSha,
-            parents: [baseSha],
-        });
-        const newSha = newCommit.sha;
-        yield octokit.rest.git.createRef({
-            owner,
-            repo,
-            ref: `refs/heads/${releaseBranch}`,
-            sha: newSha,
-        });
-        core.info(`Created release branch ${releaseBranch} at SHA: ${newSha}`);
+        return withStatusTracking(octokit, owner, repo, releaseBranch, "Creating release branch", () => __awaiter(this, void 0, void 0, function* () {
+            const { data: baseRef } = yield octokit.rest.git.getRef({
+                owner,
+                repo,
+                ref: `heads/${baseBranch}`,
+            });
+            const baseSha = baseRef.object.sha;
+            const { data: baseCommit } = yield octokit.rest.git.getCommit({
+                owner,
+                repo,
+                commit_sha: baseSha,
+            });
+            const treeSha = baseCommit.tree.sha;
+            const { data: newCommit } = yield octokit.rest.git.createCommit({
+                owner,
+                repo,
+                message: "chore(release): prepare release PR",
+                tree: treeSha,
+                parents: [baseSha],
+            });
+            const newSha = newCommit.sha;
+            yield octokit.rest.git.createRef({
+                owner,
+                repo,
+                ref: `refs/heads/${releaseBranch}`,
+                sha: newSha,
+            });
+            core.info(`Created release branch ${releaseBranch} at SHA: ${newSha}`);
+            return newSha;
+        }));
+    });
+}
+// Unified status helper for setting commit statuses
+function setCommitStatus(octokit, owner, repo, sha, context, state, description) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            yield octokit.rest.repos.createCommitStatus({
+                owner,
+                repo,
+                sha,
+                state,
+                description: description.substring(0, 140), // GitHub limits to 140 chars
+                context,
+            });
+            core.info(`Status check set [${context}]: ${state} - ${description}`);
+        }
+        catch (err) {
+            core.warning(`Failed to set commit status [${context}]: ${err instanceof Error ? err.message : String(err)}`);
+        }
     });
 }
 function setCommitStatusForBumpLabel(octokit, config, sha, bumpLevel) {
@@ -32870,20 +32907,29 @@ function setCommitStatusForBumpLabel(octokit, config, sha, bumpLevel) {
         const description = hasValidBumpLabel
             ? `Bump level: ${bumpLevel}`
             : `Missing bump label. Add ${config.labelMajor}, ${config.labelMinor}, or ${config.labelPatch}`;
-        try {
-            yield octokit.rest.repos.createCommitStatus({
-                owner: config.owner,
-                repo: config.repo,
-                sha,
-                state: state,
-                description,
-                context: "create-release-pr/bump-label",
-            });
-            core.info(`Status check set: ${state} - ${description}`);
+        yield setCommitStatus(octokit, config.owner, config.repo, sha, "create-release-pr/bump-label", state, description);
+    });
+}
+function setReleaseBranchUpdateStatus(octokit, owner, repo, releaseBranch, state, description, sha) {
+    return __awaiter(this, void 0, void 0, function* () {
+        // If SHA not provided, try to get it from the branch
+        let commitSha = sha;
+        if (!commitSha) {
+            try {
+                const { data: ref } = yield octokit.rest.git.getRef({
+                    owner,
+                    repo,
+                    ref: `heads/${releaseBranch}`,
+                });
+                commitSha = ref.object.sha;
+            }
+            catch (_a) {
+                // Branch might not exist yet, skip status update
+                core.debug(`Cannot set status - branch ${releaseBranch} does not exist yet`);
+                return;
+            }
         }
-        catch (err) {
-            core.warning(`Failed to set commit status: ${err instanceof Error ? err.message : String(err)}`);
-        }
+        yield setCommitStatus(octokit, owner, repo, commitSha, "create-release-pr/branch-update", state, description);
     });
 }
 function ensureAndAddLabel(octokit, owner, repo, prNumber, labelName) {
@@ -33036,42 +33082,44 @@ function handlePullRequestEvent(octokit, config) {
 }
 function updateReleasePR(octokit, config, pr, releaseBranch, currentTag) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b;
         core.info(`Processing release PR #${pr.number}`);
-        const releaseInfo = yield getReleaseInfo(octokit, config, pr.labels || [], currentTag);
-        // Always set commit status
-        yield setCommitStatusForBumpLabel(octokit, config, pr.head.sha, releaseInfo.bumpLevel);
-        const { title, body } = buildPRText({
-            owner: config.owner,
-            repo: config.repo,
-            baseBranch: config.baseBranch,
-            releaseBranch: releaseBranch,
-            labelMajor: config.labelMajor,
-            labelMinor: config.labelMinor,
-            labelPatch: config.labelPatch,
-            currentTag: ((_a = releaseInfo.currentTag) === null || _a === void 0 ? void 0 : _a.raw) || null,
-            nextTag: releaseInfo.nextTag,
-            notes: releaseInfo.notes,
-            skipReleaseNotes: config.skipReleaseNotes,
-        });
-        core.info(`Updating PR #${pr.number} with new title and body`);
-        yield octokit.rest.pulls.update({
-            owner: config.owner,
-            repo: config.repo,
-            pull_number: pr.number,
-            title,
-            body,
-        });
-        core.info("PR updated successfully");
-        setReleaseOutputs("release_pr_open", {
-            prNumber: String(pr.number),
-            prUrl: pr.html_url,
-            prBranch: releaseBranch,
-            currentTag: ((_b = releaseInfo.currentTag) === null || _b === void 0 ? void 0 : _b.raw) || null,
-            nextTag: releaseInfo.nextTag,
-            bumpLevel: releaseInfo.bumpLevel,
-            notes: releaseInfo.notes,
-        });
+        yield withStatusTracking(octokit, config.owner, config.repo, releaseBranch, `Updating release PR #${pr.number}`, () => __awaiter(this, void 0, void 0, function* () {
+            var _a, _b;
+            const releaseInfo = yield getReleaseInfo(octokit, config, pr.labels || [], currentTag);
+            // Always set commit status
+            yield setCommitStatusForBumpLabel(octokit, config, pr.head.sha, releaseInfo.bumpLevel);
+            const { title, body } = buildPRText({
+                owner: config.owner,
+                repo: config.repo,
+                baseBranch: config.baseBranch,
+                releaseBranch: releaseBranch,
+                labelMajor: config.labelMajor,
+                labelMinor: config.labelMinor,
+                labelPatch: config.labelPatch,
+                currentTag: ((_a = releaseInfo.currentTag) === null || _a === void 0 ? void 0 : _a.raw) || null,
+                nextTag: releaseInfo.nextTag,
+                notes: releaseInfo.notes,
+                skipReleaseNotes: config.skipReleaseNotes,
+            });
+            core.info(`Updating PR #${pr.number} with new title and body`);
+            yield octokit.rest.pulls.update({
+                owner: config.owner,
+                repo: config.repo,
+                pull_number: pr.number,
+                title,
+                body,
+            });
+            core.info("PR updated successfully");
+            setReleaseOutputs("release_pr_open", {
+                prNumber: String(pr.number),
+                prUrl: pr.html_url,
+                prBranch: releaseBranch,
+                currentTag: ((_b = releaseInfo.currentTag) === null || _b === void 0 ? void 0 : _b.raw) || null,
+                nextTag: releaseInfo.nextTag,
+                bumpLevel: releaseInfo.bumpLevel,
+                notes: releaseInfo.notes,
+            });
+        }), pr.head.sha);
     });
 }
 function handlePushEvent(octokit, config) {
@@ -33181,27 +33229,36 @@ function createNewReleasePR(octokit, config, currentTag, releaseBranch) {
             notes,
             skipReleaseNotes: config.skipReleaseNotes,
         });
-        core.info(`Creating release PR from ${releaseBranch} to ${config.baseBranch}`);
-        const { data: created } = yield octokit.rest.pulls.create({
-            owner: config.owner,
-            repo: config.repo,
-            title,
-            head: releaseBranch,
-            base: config.baseBranch,
-            body,
-            draft: true,
-        });
-        core.info(`Created release PR #${created.number}`);
-        yield ensureAndAddLabel(octokit, config.owner, config.repo, created.number, "release-pr");
-        setReleaseOutputs("release_pr_open", {
-            prNumber: String(created.number),
-            prUrl: created.html_url,
-            prBranch: releaseBranch,
-            currentTag: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || null,
-            nextTag,
-            bumpLevel,
-            notes,
-        });
+        yield withStatusTracking(octokit, config.owner, config.repo, releaseBranch, "Creating release PR", () => __awaiter(this, void 0, void 0, function* () {
+            core.info(`Creating release PR from ${releaseBranch} to ${config.baseBranch}`);
+            const { data: created } = yield octokit.rest.pulls.create({
+                owner: config.owner,
+                repo: config.repo,
+                title,
+                head: releaseBranch,
+                base: config.baseBranch,
+                body,
+                draft: true,
+            });
+            core.info(`Created release PR #${created.number}`);
+            yield ensureAndAddLabel(octokit, config.owner, config.repo, created.number, "release-pr");
+            setReleaseOutputs("release_pr_open", {
+                prNumber: String(created.number),
+                prUrl: created.html_url,
+                prBranch: releaseBranch,
+                currentTag: (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || null,
+                nextTag,
+                bumpLevel,
+                notes,
+            });
+            // Return the PR head SHA for status update
+            const { data: prData } = yield octokit.rest.pulls.get({
+                owner: config.owner,
+                repo: config.repo,
+                pull_number: created.number,
+            });
+            return prData.head.sha;
+        }));
     });
 }
 function getReleaseInfo(octokit, config, labels, currentTag) {
