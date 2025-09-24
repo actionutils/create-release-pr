@@ -238,22 +238,21 @@ jobs:
             echo "✅ Release workflow completed!"
 
             # Find the release PR created by the workflow
-            # Try to find the release PR - it should target the test base branch
+            # The branch name format is now release-pr-from-<tag> or release-pr-from-initial
+            # Look for any PR starting with release-pr-from- that targets the test base branch
             RELEASE_PR_NUMBER=$(gh pr list \
               --repo actionutils/test-create-release-pr \
               --state open \
-              --head "release/pr" \
-              --json number,baseRefName \
-              --jq ".[] | select(.baseRefName == \"$TEST_BASE_BRANCH\") | .number")
+              --json number,baseRefName,headRefName \
+              --jq ".[] | select(.baseRefName == \"$TEST_BASE_BRANCH\" and (.headRefName | startswith(\"release-pr-from-\"))) | .number")
 
-            # If not found with test base branch, try main branch
+            # If not found with test base branch, try to find any release PR
             if [ -z "$RELEASE_PR_NUMBER" ] || [ "$RELEASE_PR_NUMBER" = "null" ]; then
               RELEASE_PR_NUMBER=$(gh pr list \
                 --repo actionutils/test-create-release-pr \
                 --state open \
-                --head "release/pr" \
-                --json number \
-                --jq '.[0].number')
+                --json number,headRefName \
+                --jq '.[] | select(.headRefName | startswith("release-pr-from-")) | .number' | head -n1)
             fi
 
             if [ -n "$RELEASE_PR_NUMBER" ] && [ "$RELEASE_PR_NUMBER" != "null" ]; then
@@ -317,12 +316,12 @@ jobs:
           echo "Waiting for release workflow after merge..."
           sleep 30
 
-          # Get the latest workflow run for the Release workflow on main branch after merge
-          # The release PR merges to main, so the workflow runs on main branch
+          # Get the latest workflow run for the Release workflow on test base branch after merge
+          # The release PR merges to the test base branch, so the workflow runs there
           LATEST_RUN_ID=$(gh run list \
             --repo actionutils/test-create-release-pr \
             --workflow=release.yml \
-            --branch="main" \
+            --branch="$TEST_BASE_BRANCH" \
             --limit=1 \
             --json=databaseId \
             --jq='.[0].databaseId')
@@ -337,7 +336,7 @@ jobs:
 
             echo "✅ Release workflow completed after merge!"
           else
-            echo "⚠️ No release workflow run found on main branch after merge"
+            echo "⚠️ No release workflow run found on test base branch after merge"
           fi
 
       - name: Revert base branch changes
