@@ -15,7 +15,7 @@ interface Config {
 	owner: string;
 	repo: string;
 	baseBranch: string;
-	releaseBranch: string;
+	releaseBranchPrefix: string;
 	labelMajor: string;
 	labelMinor: string;
 	labelPatch: string;
@@ -47,7 +47,7 @@ function getConfig(): Config {
 		owner,
 		repo,
 		baseBranch: core.getInput("base-branch") || "main",
-		releaseBranch: core.getInput("release-branch") || "release/pr",
+		releaseBranchPrefix: core.getInput("release-branch") || "release-pr",
 		labelMajor: core.getInput("label-major") || "bump:major",
 		labelMinor: core.getInput("label-minor") || "bump:minor",
 		labelPatch: core.getInput("label-patch") || "bump:patch",
@@ -67,7 +67,7 @@ async function run(): Promise<void> {
 		const eventName = ghContext.eventName;
 		core.debug(`Event name: ${eventName}`);
 		core.debug(
-			`Configuration: baseBranch=${config.baseBranch}, releaseBranch=${config.releaseBranch}, tagPrefix=${config.tagPrefix}`,
+			`Configuration: baseBranch=${config.baseBranch}, releaseBranchPrefix=${config.releaseBranchPrefix}, tagPrefix=${config.tagPrefix}`,
 		);
 
 		const octokit = getOctokit(token);
@@ -172,6 +172,16 @@ function calcNext(
 	}
 
 	return `${prefix}${newVersion}`;
+}
+
+function getReleaseBranchName(
+	prefix: string,
+	currentTag: string | null,
+): string {
+	if (currentTag) {
+		return `${prefix}/from-${currentTag}`;
+	}
+	return `${prefix}/from-initial`;
 }
 
 async function generateNotes(
@@ -471,15 +481,19 @@ async function handlePullRequestEvent(
 		return;
 	}
 
+	// Get current tag to determine the release branch name
+	const currentTag = await latestTag(octokit, config.owner, config.repo);
+	const releaseBranch = getReleaseBranchName(config.releaseBranchPrefix, currentTag?.raw || null);
+
 	// Check if this is the release PR itself
-	if (pr.head.ref === config.releaseBranch) {
+	if (pr.head.ref === releaseBranch) {
 		if (action === "labeled" || action === "unlabeled") {
 			core.info("Label change on release PR - updating");
-			await updateReleasePR(octokit, config, pr);
+			await updateReleasePR(octokit, config, pr, releaseBranch);
 		} else {
 			// For opened/synchronize/reopened, update PR (which also sets status check)
 			core.info("Release PR opened/updated - updating");
-			await updateReleasePR(octokit, config, pr);
+			await updateReleasePR(octokit, config, pr, releaseBranch);
 		}
 		return;
 	}
@@ -493,7 +507,7 @@ async function handlePullRequestEvent(
 			owner: config.owner,
 			repo: config.repo,
 			baseBranch: config.baseBranch,
-			releaseBranch: config.releaseBranch,
+			releaseBranch: releaseBranch,
 		});
 
 		if (releasePR && releasePR.number) {
@@ -504,6 +518,7 @@ async function handlePullRequestEvent(
 				octokit,
 				config,
 				releasePR as WebhookPullRequestEvent["pull_request"],
+				releaseBranch,
 			);
 		} else {
 			core.info("No open release PR found - skipping");
@@ -525,6 +540,7 @@ async function updateReleasePR(
 		head: { sha: string };
 		labels?: Array<string | { name: string }>;
 	},
+	releaseBranch: string,
 ): Promise<void> {
 	core.info(`Processing release PR #${pr.number}`);
 
@@ -542,7 +558,7 @@ async function updateReleasePR(
 		owner: config.owner,
 		repo: config.repo,
 		baseBranch: config.baseBranch,
-		releaseBranch: config.releaseBranch,
+		releaseBranch: releaseBranch,
 		labelMajor: config.labelMajor,
 		labelMinor: config.labelMinor,
 		labelPatch: config.labelPatch,
@@ -565,7 +581,7 @@ async function updateReleasePR(
 	setReleaseOutputs("release_pr_open", {
 		prNumber: String(pr.number),
 		prUrl: pr.html_url,
-		prBranch: config.releaseBranch,
+		prBranch: releaseBranch,
 		currentTag: releaseInfo.currentTag?.raw || null,
 		nextTag: releaseInfo.nextTag,
 		bumpLevel: releaseInfo.bumpLevel,
@@ -582,8 +598,13 @@ async function handlePushEvent(
 	const headSha = pushPayload.after;
 	core.debug(`Head SHA: ${headSha}`);
 
+	// Get current tag to determine the release branch name
+	const currentTag = await latestTag(octokit, config.owner, config.repo);
+	core.info(`Current tag: ${currentTag?.raw || "(none)"}`);
+	const releaseBranch = getReleaseBranchName(config.releaseBranchPrefix, currentTag?.raw || null);
+
 	// Check if this push is from a merged release PR
-	const releasePR = await findMergedReleasePR(octokit, config, headSha);
+	const releasePR = await findMergedReleasePR(octokit, config, headSha, releaseBranch);
 	if (releasePR) {
 		await handleMergedReleasePR(octokit, config, releasePR);
 		return;
@@ -591,20 +612,18 @@ async function handlePushEvent(
 
 	// Check for existing open release PR
 	core.info("Checking for existing release PR");
-	const currentTag = await latestTag(octokit, config.owner, config.repo);
-	core.info(`Current tag: ${currentTag?.raw || "(none)"}`);
 
 	const existing = await findOpenReleasePR(octokit, {
 		owner: config.owner,
 		repo: config.repo,
 		baseBranch: config.baseBranch,
-		releaseBranch: config.releaseBranch,
+		releaseBranch: releaseBranch,
 	}).catch(() => null);
 
 	if (existing && existing.number) {
-		await updateReleasePR(octokit, config, existing);
+		await updateReleasePR(octokit, config, existing, releaseBranch);
 	} else {
-		await createNewReleasePR(octokit, config, currentTag);
+		await createNewReleasePR(octokit, config, currentTag, releaseBranch);
 	}
 }
 
@@ -612,6 +631,7 @@ async function findMergedReleasePR(
 	octokit: ReturnType<typeof getOctokit>,
 	config: Config,
 	headSha: string,
+	releaseBranch: string,
 ): Promise<WebhookPullRequestEvent["pull_request"] | undefined> {
 	try {
 		const { data } =
@@ -620,7 +640,7 @@ async function findMergedReleasePR(
 				repo: config.repo,
 				commit_sha: headSha,
 			});
-		return (data || []).find((p) => p.head?.ref === config.releaseBranch) as
+		return (data || []).find((p) => p.head?.ref === releaseBranch) as
 			| WebhookPullRequestEvent["pull_request"]
 			| undefined;
 	} catch {
@@ -675,12 +695,13 @@ async function createNewReleasePR(
 	octokit: ReturnType<typeof getOctokit>,
 	config: Config,
 	currentTag: semver.SemVer | null,
+	releaseBranch: string,
 ): Promise<void> {
 	core.info("No existing release PR found - creating new one");
 
 	await ensureReleaseBranch(octokit, config.owner, config.repo, {
 		baseBranch: config.baseBranch,
-		releaseBranch: config.releaseBranch,
+		releaseBranch: releaseBranch,
 	});
 
 	const bumpLevel: BumpLevel = "unknown";
@@ -698,7 +719,7 @@ async function createNewReleasePR(
 		owner: config.owner,
 		repo: config.repo,
 		baseBranch: config.baseBranch,
-		releaseBranch: config.releaseBranch,
+		releaseBranch: releaseBranch,
 		labelMajor: config.labelMajor,
 		labelMinor: config.labelMinor,
 		labelPatch: config.labelPatch,
@@ -709,13 +730,13 @@ async function createNewReleasePR(
 	});
 
 	core.info(
-		`Creating release PR from ${config.releaseBranch} to ${config.baseBranch}`,
+		`Creating release PR from ${releaseBranch} to ${config.baseBranch}`,
 	);
 	const { data: created } = await octokit.rest.pulls.create({
 		owner: config.owner,
 		repo: config.repo,
 		title,
-		head: config.releaseBranch,
+		head: releaseBranch,
 		base: config.baseBranch,
 		body,
 		draft: true,
@@ -733,7 +754,7 @@ async function createNewReleasePR(
 	setReleaseOutputs("release_pr_open", {
 		prNumber: String(created.number),
 		prUrl: created.html_url,
-		prBranch: config.releaseBranch,
+		prBranch: releaseBranch,
 		currentTag: currentTag?.raw || null,
 		nextTag,
 		bumpLevel,
