@@ -32881,8 +32881,19 @@ function ensureReleaseBranch(octokit_1, owner_1, repo_1, _a) {
         }));
     });
 }
+// Helper to get workflow run URL
+function getWorkflowRunUrl() {
+    const runId = process.env.GITHUB_RUN_ID;
+    if (!runId)
+        return undefined;
+    const serverUrl = process.env.GITHUB_SERVER_URL || "https://github.com";
+    const repository = process.env.GITHUB_REPOSITORY;
+    if (!repository)
+        return undefined;
+    return `${serverUrl}/${repository}/actions/runs/${runId}`;
+}
 // Unified status helper for setting commit statuses
-function setCommitStatus(octokit, owner, repo, sha, context, state, description) {
+function setCommitStatus(octokit, owner, repo, sha, context, state, description, targetUrl) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             yield octokit.rest.repos.createCommitStatus({
@@ -32892,6 +32903,7 @@ function setCommitStatus(octokit, owner, repo, sha, context, state, description)
                 state,
                 description: description.substring(0, 140), // GitHub limits to 140 chars
                 context,
+                target_url: targetUrl,
             });
             core.info(`Status check set [${context}]: ${state} - ${description}`);
         }
@@ -32907,7 +32919,7 @@ function setCommitStatusForBumpLabel(octokit, config, sha, bumpLevel) {
         const description = hasValidBumpLabel
             ? `Bump level: ${bumpLevel}`
             : `Missing bump label. Add ${config.labelMajor}, ${config.labelMinor}, or ${config.labelPatch}`;
-        yield setCommitStatus(octokit, config.owner, config.repo, sha, "create-release-pr/bump-label", state, description);
+        yield setCommitStatus(octokit, config.owner, config.repo, sha, "create-release-pr/bump-label", state, description, getWorkflowRunUrl());
     });
 }
 function setReleaseBranchUpdateStatus(octokit, owner, repo, releaseBranch, state, description, sha) {
@@ -32929,7 +32941,7 @@ function setReleaseBranchUpdateStatus(octokit, owner, repo, releaseBranch, state
                 return;
             }
         }
-        yield setCommitStatus(octokit, owner, repo, commitSha, "create-release-pr/branch-update", state, description);
+        yield setCommitStatus(octokit, owner, repo, commitSha, "create-release-pr/branch-update", state, description, getWorkflowRunUrl());
     });
 }
 function ensureAndAddLabel(octokit, owner, repo, prNumber, labelName) {
