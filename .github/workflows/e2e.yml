@@ -282,6 +282,12 @@ jobs:
           # Wait a moment for label to be processed
           sleep 5
 
+          # Mark the PR as ready for review (remove draft status)
+          gh pr ready "$RELEASE_PR_NUMBER" \
+            --repo actionutils/test-create-release-pr
+
+          echo "Marked release PR #$RELEASE_PR_NUMBER as ready for review"
+
           # Merge the release PR
           gh pr merge "$RELEASE_PR_NUMBER" \
             --repo actionutils/test-create-release-pr \
