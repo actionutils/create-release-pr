@@ -938,12 +938,21 @@ async function createNewReleasePR(
 				notes,
 			});
 
-			// Return the PR head SHA for status update
+			// Get the PR head SHA for status update
 			const { data: prData } = await octokit.rest.pulls.get({
 				owner: config.owner,
 				repo: config.repo,
 				pull_number: created.number,
 			});
+
+			// Set commit status for the initial unknown bump level
+			await setCommitStatusForBumpLabel(
+				octokit,
+				config,
+				prData.head.sha,
+				bumpLevel,
+			);
+
 			return prData.head.sha;
 		},
 	);

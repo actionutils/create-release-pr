@@ -33271,12 +33271,14 @@ function createNewReleasePR(octokit, config, currentTag, releaseBranch) {
                 bumpLevel,
                 notes,
             });
-            // Return the PR head SHA for status update
+            // Get the PR head SHA for status update
             const { data: prData } = yield octokit.rest.pulls.get({
                 owner: config.owner,
                 repo: config.repo,
                 pull_number: created.number,
             });
+            // Set commit status for the initial unknown bump level
+            yield setCommitStatusForBumpLabel(octokit, config, prData.head.sha, bumpLevel);
             return prData.head.sha;
         }));
     });
