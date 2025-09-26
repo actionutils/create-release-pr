@@ -69,7 +69,7 @@ jobs:
 
             <details>
               <summary>Dependency Changes (JSON)</summary>
-              <pre>${{ toJSON(steps.dependency-review.outputs.dependency-changes) }}</pre>
+              <pre>${{ toJSON(fromJSON(steps.dependency-review.outputs.dependency-changes)) }}</pre>
             </details>
 
   verify-releaser:
