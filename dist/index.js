@@ -32710,8 +32710,8 @@ function run() {
                 yield handlePullRequestEvent(octokit, config);
                 return;
             }
-            if (eventName === "push") {
-                yield handlePushEvent(octokit, config);
+            if (eventName === "push" || eventName === "workflow_dispatch") {
+                yield handlePushOrDispatchEvent(octokit, config);
                 return;
             }
             core.info(`Event '${eventName}' does not require action`);
@@ -33134,17 +33134,25 @@ function updateReleasePR(octokit, config, pr, releaseBranch, currentTag) {
         }), pr.head.sha);
     });
 }
-function handlePushEvent(octokit, config) {
+function handlePushOrDispatchEvent(octokit, config) {
     return __awaiter(this, void 0, void 0, function* () {
-        core.info("Processing push event");
-        const pushPayload = github_1.context.payload;
-        const headSha = pushPayload.after;
+        const eventName = github_1.context.eventName;
+        core.info(`Processing ${eventName} event`);
+        let headSha;
+        if (eventName === "push") {
+            const pushPayload = github_1.context.payload;
+            headSha = pushPayload.after;
+        }
+        else {
+            // For workflow_dispatch, use context.sha
+            headSha = github_1.context.sha;
+        }
         core.debug(`Head SHA: ${headSha}`);
         // Get current tag to determine the release branch name
         const currentTag = yield latestTag(octokit, config.owner, config.repo);
         core.info(`Current tag: ${(currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || "(none)"}`);
         const releaseBranch = getReleaseBranchName(config.releaseBranchPrefix, (currentTag === null || currentTag === void 0 ? void 0 : currentTag.raw) || null);
-        // Check if this push is from a merged release PR
+        // Check if this is from a merged release PR
         const releasePR = yield findMergedReleasePR(octokit, config, headSha, releaseBranch);
         if (releasePR) {
             yield handleMergedReleasePR(octokit, config, releasePR, currentTag);

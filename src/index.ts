@@ -77,8 +77,8 @@ async function run(): Promise<void> {
 			return;
 		}
 
-		if (eventName === "push") {
-			await handlePushEvent(octokit, config);
+		if (eventName === "push" || eventName === "workflow_dispatch") {
+			await handlePushOrDispatchEvent(octokit, config);
 			return;
 		}
 
@@ -744,13 +744,21 @@ async function updateReleasePR(
 	);
 }
 
-async function handlePushEvent(
+async function handlePushOrDispatchEvent(
 	octokit: ReturnType<typeof getOctokit>,
 	config: Config,
 ): Promise<void> {
-	core.info("Processing push event");
-	const pushPayload = ghContext.payload as PushEvent;
-	const headSha = pushPayload.after;
+	const eventName = ghContext.eventName;
+	core.info(`Processing ${eventName} event`);
+
+	let headSha: string;
+	if (eventName === "push") {
+		const pushPayload = ghContext.payload as PushEvent;
+		headSha = pushPayload.after;
+	} else {
+		// For workflow_dispatch, use context.sha
+		headSha = ghContext.sha;
+	}
 	core.debug(`Head SHA: ${headSha}`);
 
 	// Get current tag to determine the release branch name
@@ -761,7 +769,7 @@ async function handlePushEvent(
 		currentTag?.raw || null,
 	);
 
-	// Check if this push is from a merged release PR
+	// Check if this is from a merged release PR
 	const releasePR = await findMergedReleasePR(
 		octokit,
 		config,
