@@ -63,6 +63,7 @@ jobs:
         uses: actionutils/sticky-comment@v1
         with:
           key: 'dep-review'
+          number: ${{ fromJSON(needs.release-pr.outputs.release_pr).pr_number }}
           body: |
             ${{ steps.dependency-review.outputs.comment-content }}
 
