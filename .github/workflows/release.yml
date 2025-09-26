@@ -55,27 +55,21 @@ jobs:
         with:
           base-ref: ${{ fromJSON(needs.release-pr.outputs.release_pr).current_tag }}
           head-ref: main
-      - name: Comment dependency review result
-        env:
-          BODY: ${{ steps.dependency-review.outputs.comment-content }}
-          DEP_JSON: ${{ steps.dependency-review.outputs.dependency-changes }}
-          GITHUB_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ fromJSON(needs.release-pr.outputs.release_pr).pr_number }}
-        run: |
-          FORMATTED_JSON=$(echo "${DEP_JSON}" | jq .)
-          FULL_BODY="${BODY}
+      - name: Verify actionutils/sticky-comment
+        uses: actionutils/trusted-tag-verifier@68bef2f18f8ceb5c4dccc5542cadcfbc82ed4656 # v0.5.0
+        with:
+          verify: 'actionutils/sticky-comment'
+      - name: Post sticky comment
+        uses: actionutils/sticky-comment@v1
+        with:
+          key: 'dep-review'
+          body: |
+            ${{ steps.dependency-review.outputs.comment-content }}
 
-          <details>
-          <summary>Dependency Changes (JSON)</summary>
-
-          <pre>${FORMATTED_JSON}</pre>
-          </details>"
-
-          github-comment post --pr "${PR_NUMBER}" \
-            -k dep-review \
-            --update-condition 'Comment.HasMeta && Comment.Meta.TemplateKey == "dep-review"' \
-            --var "content:${FULL_BODY}" \
-            --template "{{ .Vars.content | AvoidHTMLEscape }}"
+            <details>
+              <summary>Dependency Changes (JSON)</summary>
+              <pre>${{ toJSON(steps.dependency-review.outputs.dependency-changes) }}</pre>
+            </details>
 
   verify-releaser:
     needs: [release-pr]
@@ -96,9 +90,6 @@ jobs:
   release:
     needs: [verify-releaser, release-pr]
     if: fromJSON(needs.release-pr.outputs.release_pr).state == 'release_required'
-    concurrency:
-      group: "release"
-      cancel-in-progress: false
     permissions:
       id-token: write    # Required for signed tags
       contents: write    # Required for release and tag creation
