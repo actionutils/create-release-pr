@@ -53,7 +53,7 @@ jobs:
           base-ref: ${{ fromJSON(needs.release-pr.outputs.release_pr).current_tag }}
           head-ref: main
       - name: Verify actionutils/sticky-comment
-        uses: actionutils/trusted-tag-verifier@68bef2f18f8ceb5c4dccc5542cadcfbc82ed4656 # v0.5.0
+        uses: actionutils/trusted-tag-verifier@95f88dda1c54c11d1ad9428998be8b068443fa07 # v0.5.1
         with:
           verify: 'actionutils/sticky-comment'
       - name: Post sticky comment
@@ -81,7 +81,7 @@ jobs:
         with:
           egress-policy: audit
       - name: Verify Trusted Tag Releaser
-        uses: actionutils/trusted-tag-verifier@68bef2f18f8ceb5c4dccc5542cadcfbc82ed4656 # v0.5.0
+        uses: actionutils/trusted-tag-verifier@95f88dda1c54c11d1ad9428998be8b068443fa07 # v0.5.1
         with:
           verify: 'actionutils/trusted-tag-releaser@v2'
 
