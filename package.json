@@ -23,7 +23,7 @@
     "@types/semver": "^7.7.1",
     "@vercel/ncc": "^0.38.4",
     "oxlint": "^1.19.0",
-    "oxlint-tsgolint": "^0.2.0",
+    "oxlint-tsgolint": "^0.3.0",
     "typescript": "^5.9.3"
   }
 }
