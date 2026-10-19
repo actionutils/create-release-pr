@@ -33,6 +33,9 @@ inputs:
     description: Skip adding release notes to PR description (useful for custom workflows)
     required: false
     default: 'false'
+  release-notes-template:
+    description: Optional gh-release-notes MiniJinja template (local file, HTTPS URL, or GitHub purl)
+    required: false
   github-token:
     description: GitHub token
     required: true
