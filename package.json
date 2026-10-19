@@ -5,6 +5,7 @@
   "type": "commonjs",
   "scripts": {
     "build": "ncc build src/index.ts -o dist",
+    "test": "ncc build src/release-notes.test.ts -o .test-dist && node .test-dist/index.js",
     "lint": "oxlint --type-aware src",
     "typecheck": "tsc --noEmit",
     "format": "biome format --write src",
@@ -13,6 +14,7 @@
   "dependencies": {
     "@actions/core": "^1.10.1",
     "@actions/github": "^6.0.0",
+    "@actionutils/gh-release-notes": "0.8.0",
     "@octokit/webhooks-definitions": "^3.68.1",
     "semver": "^7.7.2"
   },

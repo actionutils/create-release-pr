@@ -8,6 +8,7 @@ import {
 	PushEvent,
 } from "@octokit/webhooks-definitions/schema";
 import * as semver from "semver";
+import { generateReleaseNotes } from "./release-notes";
 
 type BumpLevel = "major" | "minor" | "patch" | "unknown";
 
@@ -21,6 +22,7 @@ interface Config {
 	labelPatch: string;
 	tagPrefix: string;
 	releaseCfgPath?: string;
+	releaseNotesTemplate?: string;
 	skipReleaseNotes: boolean;
 }
 
@@ -53,6 +55,7 @@ function getConfig(): Config {
 		labelPatch: core.getInput("label-patch") || "bump:patch",
 		tagPrefix: core.getInput("tag-prefix") || "v",
 		releaseCfgPath: core.getInput("configuration_file_path") || undefined,
+		releaseNotesTemplate: core.getInput("release-notes-template") || undefined,
 		skipReleaseNotes: core.getInput("skip-release-notes") === "true",
 	};
 }
@@ -185,9 +188,7 @@ function getReleaseBranchName(
 }
 
 async function generateNotes(
-	octokit: ReturnType<typeof getOctokit>,
-	owner: string,
-	repo: string,
+	config: Config,
 	{
 		tagName,
 		target,
@@ -201,15 +202,16 @@ async function generateNotes(
 	},
 ): Promise<string> {
 	try {
-		const res = await octokit.rest.repos.generateReleaseNotes({
-			owner,
-			repo,
-			tag_name: tagName,
-			target_commitish: target,
-			previous_tag_name: previousTagName,
-			configuration_file_path,
+		return await generateReleaseNotes({
+			owner: config.owner,
+			repo: config.repo,
+			token: core.getInput("github-token") || process.env.GITHUB_TOKEN || "",
+			tagName,
+			target,
+			previousTagName,
+			configurationFilePath: configuration_file_path,
+			template: config.releaseNotesTemplate,
 		});
-		return res.data.body || "";
 	} catch (err) {
 		core.warning(
 			`Failed to generate release notes: ${err instanceof Error ? err.message : String(err)}`,
@@ -691,7 +693,6 @@ async function updateReleasePR(
 		`Updating release PR #${pr.number}`,
 		async () => {
 			const releaseInfo = await getReleaseInfo(
-				octokit,
 				config,
 				pr.labels || [],
 				currentTag,
@@ -843,7 +844,7 @@ async function handleMergedReleasePR(
 	core.info(`Release required for: ${nextTag}`);
 
 	// Generate release notes for the merged PR
-	const notes = await generateNotes(octokit, config.owner, config.repo, {
+	const notes = await generateNotes(config, {
 		tagName: nextTag,
 		target: config.baseBranch,
 		previousTagName: currentTag?.raw || undefined,
@@ -878,7 +879,7 @@ async function createNewReleasePR(
 	const nextTag = "";
 	core.info("Release branch ensured, creating PR with unknown bump level");
 
-	const notes = await generateNotes(octokit, config.owner, config.repo, {
+	const notes = await generateNotes(config, {
 		tagName: config.baseBranch,
 		target: config.baseBranch,
 		previousTagName: currentTag?.raw || undefined,
@@ -959,7 +960,6 @@ async function createNewReleasePR(
 }
 
 async function getReleaseInfo(
-	octokit: ReturnType<typeof getOctokit>,
 	config: Config,
 	labels: Array<string | { name: string }>,
 	currentTag: semver.SemVer | null,
@@ -975,7 +975,7 @@ async function getReleaseInfo(
 			: calcNext(config.tagPrefix, currentTag, bumpLevel);
 	if (nextTag) core.info(`Next tag will be: ${nextTag}`);
 
-	const notes = await generateNotes(octokit, config.owner, config.repo, {
+	const notes = await generateNotes(config, {
 		tagName: nextTag || config.baseBranch,
 		target: config.baseBranch,
 		previousTagName: currentTag?.raw || undefined,
